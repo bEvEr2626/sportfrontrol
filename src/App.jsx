@@ -1,1275 +1,958 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import './App.css'
+import { useHashRoute } from './router/useHashRoute'
+import { SportControlProvider } from './state/SportControlProvider'
+import { useSportControl } from './state/useSportControl'
+import { AppShell } from './AppShell'
+import { Modal } from './components/ui/Modal'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+const SportsPage = () => {
+  const {
+    sports,
+    tournamentsBySport,
+    apiHelpers,
+    createOrUpdateSport,
+    deleteSport,
+    busy,
+  } = useSportControl()
 
-const emptySport = { name: '' }
-const emptyTeam = { name: '' }
-const emptyPlayer = { name: '', teamId: '' }
-const emptyTournament = { name: '', sportId: '' }
-const emptyMatch = {
-  name: '',
-  location: '',
-  date: '',
-  tournamentId: '',
-  homeTeamId: '',
-  awayTeamId: '',
+  const [sportForm, setSportForm] = useState(apiHelpers.emptySport)
+  const [editingId, setEditingId] = useState(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalBusy, setModalBusy] = useState(false)
+  const isEdit = Boolean(editingId)
+
+  const openCreate = () => {
+    setEditingId(null)
+    setSportForm(apiHelpers.emptySport)
+    setModalOpen(true)
+  }
+
+  const openEdit = (sport) => {
+    setEditingId(sport.id)
+    setSportForm({ name: sport.name || '' })
+    setModalOpen(true)
+  }
+
+  const onSubmit = async () => {
+    setModalBusy(true)
+    try {
+      await createOrUpdateSport(editingId, { name: sportForm.name.trim() })
+      setModalOpen(false)
+    } finally {
+      setModalBusy(false)
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div>
+          <h2>Виды спорта</h2>
+          <p className="muted">Связь один-ко-многим между видами спорта и турнирами.</p>
+        </div>
+        <div className="panel-meta">
+          <span className="chip">Всего: {sports.length}</span>
+          <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
+            Создать вид спорта
+          </button>
+        </div>
+      </div>
+
+      <div className="panel-grid">
+        <div className="panel-card list-card">
+          <h3>Список видов спорта</h3>
+          <ul className="item-list">
+            {sports.map((sport) => (
+              <li key={sport.id} className="item">
+                <div className="item-body">
+                  <span className="item-title">{sport.name}</span>
+                  <div className="item-meta">
+                    {(tournamentsBySport.get(sport.id) || []).map((t) => (
+                      <span key={t.id} className="tag">
+                        {t.name}
+                      </span>
+                    ))}
+                    {!tournamentsBySport.get(sport.id)?.length ? (
+                      <span className="muted">Пока нет турниров</span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="item-actions">
+                  <button className="button tiny" type="button" onClick={() => openEdit(sport)} disabled={busy}>
+                    Редактировать
+                  </button>
+                  <button
+                    className="button tiny danger"
+                    type="button"
+                    onClick={() => deleteSport(sport)}
+                    disabled={busy}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </li>
+            ))}
+            {!sports.length ? (
+              <li className="item" style={{ gridTemplateColumns: '1fr' }}>
+                <span className="muted">Пока нет видов спорта. Создайте первый.</span>
+              </li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h3>Подсказка</h3>
+          <p className="muted">
+            Работайте последовательно: выберите сущность, управляйте ею в списке и редактируйте через модальное
+            окно.
+          </p>
+        </div>
+      </div>
+
+      <Modal
+        open={modalOpen}
+        title={isEdit ? 'Редактировать вид спорта' : 'Создать вид спорта'}
+        description="Введите название и сохраните."
+        busy={modalBusy}
+        primaryAction={{
+          label: isEdit ? 'Сохранить' : 'Создать',
+          disabled: modalBusy || busy,
+          onClick: onSubmit,
+        }}
+        secondaryAction={{
+          label: 'Отмена',
+          disabled: modalBusy || busy,
+          onClick: () => setModalOpen(false),
+        }}
+        onClose={() => setModalOpen(false)}
+      >
+        <form
+          className="form-grid"
+          onSubmit={(e) => {
+            e.preventDefault()
+            onSubmit()
+          }}
+        >
+          <label>
+            Название
+            <input
+              value={sportForm.name}
+              onChange={(event) => setSportForm({ ...sportForm, name: event.target.value })}
+              required
+              minLength={2}
+              autoFocus
+            />
+          </label>
+        </form>
+      </Modal>
+    </section>
+  )
 }
-const emptyMatchFilter = {
-  name: '',
-  location: '',
-  tournamentId: '',
-  homeTeamName: '',
-  awayTeamName: '',
-  dateFrom: '',
-  dateTo: '',
+
+const TournamentsPage = () => {
+  const {
+    tournaments,
+    sports,
+    teamsByTournament,
+    teamById,
+    sportById,
+    apiHelpers,
+    createOrUpdateTournament,
+    deleteTournament,
+    busy,
+  } = useSportControl()
+
+  const [tournamentForm, setTournamentForm] = useState(apiHelpers.emptyTournament)
+  const [editingId, setEditingId] = useState(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalBusy, setModalBusy] = useState(false)
+  const isEdit = Boolean(editingId)
+
+  const openCreate = () => {
+    setEditingId(null)
+    setTournamentForm(apiHelpers.emptyTournament)
+    setModalOpen(true)
+  }
+
+  const openEdit = (tournament) => {
+    setEditingId(tournament.id)
+    setTournamentForm({
+      name: tournament.name || '',
+      sportId: tournament.sportId ? String(tournament.sportId) : '',
+    })
+    setModalOpen(true)
+  }
+
+  const onSubmit = async () => {
+    setModalBusy(true)
+    try {
+      const payload = {
+        name: tournamentForm.name.trim(),
+        sportId: tournamentForm.sportId === '' ? null : Number(tournamentForm.sportId),
+      }
+      await createOrUpdateTournament(editingId, payload)
+      setModalOpen(false)
+    } finally {
+      setModalBusy(false)
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div>
+          <h2>Турниры</h2>
+          <p className="muted">Связь многие-ко-многим между турнирами и командами (получается из матчей).</p>
+        </div>
+        <div className="panel-meta">
+          <span className="chip">Всего: {tournaments.length}</span>
+          <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
+            Создать турнир
+          </button>
+        </div>
+      </div>
+
+      <div className="panel-grid">
+        <div className="panel-card list-card">
+          <h3>Список турниров</h3>
+          <ul className="item-list">
+            {tournaments.map((tournament) => (
+              <li key={tournament.id} className="item">
+                <div className="item-body">
+                  <span className="item-title">{tournament.name}</span>
+                  <div className="item-meta">{sportById.get(tournament.sportId) || 'Неизвестный вид спорта'}</div>
+                  <div className="item-meta">
+                    {[...(teamsByTournament.get(tournament.id) || [])].map((teamId) => (
+                      <span key={teamId} className="tag">
+                        {teamById.get(teamId) || `Команда #${teamId}`}
+                      </span>
+                    ))}
+                    {!teamsByTournament.get(tournament.id)?.size ? <span className="muted">Пока нет команд</span> : null}
+                  </div>
+                </div>
+                <div className="item-actions">
+                  <button className="button tiny" type="button" onClick={() => openEdit(tournament)} disabled={busy}>
+                    Редактировать
+                  </button>
+                  <button
+                    className="button tiny danger"
+                    type="button"
+                    onClick={() => deleteTournament(tournament)}
+                    disabled={busy}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </li>
+            ))}
+            {!tournaments.length ? (
+              <li className="item" style={{ gridTemplateColumns: '1fr' }}>
+                <span className="muted">Пока нет турниров.</span>
+              </li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h3>Зависимости</h3>
+          <p className="muted">
+            Турнир должен быть привязан к виду спорта. Сначала создайте виды спорта, затем — турниры.
+          </p>
+        </div>
+      </div>
+
+      <Modal
+        open={modalOpen}
+        title={isEdit ? 'Редактировать турнир' : 'Создать турнир'}
+        description="Выберите вид спорта и задайте название."
+        busy={modalBusy}
+        primaryAction={{
+          label: isEdit ? 'Сохранить' : 'Создать',
+          disabled: modalBusy || busy,
+          onClick: onSubmit,
+        }}
+        secondaryAction={{
+          label: 'Отмена',
+          disabled: modalBusy || busy,
+          onClick: () => setModalOpen(false),
+        }}
+        onClose={() => setModalOpen(false)}
+      >
+        <form
+          className="form-grid"
+          onSubmit={(e) => {
+            e.preventDefault()
+            onSubmit()
+          }}
+        >
+          <label>
+            Название
+            <input
+              value={tournamentForm.name}
+              onChange={(event) => setTournamentForm({ ...tournamentForm, name: event.target.value })}
+              required
+              minLength={2}
+              autoFocus
+            />
+          </label>
+
+          <label>
+            Вид спорта
+            <select
+              value={tournamentForm.sportId}
+              onChange={(event) => setTournamentForm({ ...tournamentForm, sportId: event.target.value })}
+              required
+            >
+              <option value="">Выберите вид спорта</option>
+              {sports.map((sport) => (
+                <option key={sport.id} value={String(sport.id)}>
+                  {sport.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </form>
+      </Modal>
+    </section>
+  )
 }
 
-const toNumber = (value) => (value === '' || value == null ? null : Number(value))
-const toDateTime = (value) => (value ? (value.length === 16 ? `${value}:00` : value) : null)
-const toDateInput = (value) => (value ? value.slice(0, 16) : '')
+const TeamsPage = () => {
+  const { teams, playersByTeam, apiHelpers, createOrUpdateTeam, deleteTeam, busy } = useSportControl()
 
-const apiFetch = async (path, options = {}) => {
-  const headers = new Headers(options.headers || {})
-  if (!headers.has('Content-Type') && options.body) {
-    headers.set('Content-Type', 'application/json')
-  }
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  })
-  const contentType = response.headers.get('content-type') || ''
-  const isJson = contentType.includes('application/json')
-  const payload = isJson ? await response.json() : null
+  const [teamForm, setTeamForm] = useState(apiHelpers.emptyTeam)
+  const [editingId, setEditingId] = useState(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalBusy, setModalBusy] = useState(false)
+  const isEdit = Boolean(editingId)
 
-  if (!response.ok) {
-    const validation = payload?.validationErrors
-      ? ` (${Object.entries(payload.validationErrors)
-          .map(([field, message]) => `${field}: ${message}`)
-          .join(', ')})`
-      : ''
-    const message = payload?.message || payload?.error || response.statusText
-    throw new Error(`${message}${validation}`)
+  const openCreate = () => {
+    setEditingId(null)
+    setTeamForm(apiHelpers.emptyTeam)
+    setModalOpen(true)
   }
 
-  return payload
+  const openEdit = (team) => {
+    setEditingId(team.id)
+    setTeamForm({ name: team.name || '' })
+    setModalOpen(true)
+  }
+
+  const onSubmit = async () => {
+    setModalBusy(true)
+    try {
+      await createOrUpdateTeam(editingId, { name: teamForm.name.trim() })
+      setModalOpen(false)
+    } finally {
+      setModalBusy(false)
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div>
+          <h2>Команды</h2>
+          <p className="muted">Связь один-ко-многим между командами и игроками.</p>
+        </div>
+        <div className="panel-meta">
+          <span className="chip">Всего: {teams.length}</span>
+          <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
+            Создать команду
+          </button>
+        </div>
+      </div>
+
+      <div className="panel-grid">
+        <div className="panel-card list-card">
+          <h3>Список команд</h3>
+          <ul className="item-list">
+            {teams.map((team) => (
+              <li key={team.id} className="item">
+                <div className="item-body">
+                  <span className="item-title">{team.name}</span>
+                  <div className="item-meta">
+                    {(playersByTeam.get(team.id) || []).map((player) => (
+                      <span key={player.id} className="tag">
+                        {player.name}
+                      </span>
+                    ))}
+                    {!playersByTeam.get(team.id)?.length ? <span className="muted">Пока нет игроков</span> : null}
+                  </div>
+                </div>
+                <div className="item-actions">
+                  <button className="button tiny" type="button" onClick={() => openEdit(team)} disabled={busy}>
+                    Редактировать
+                  </button>
+                  <button
+                    className="button tiny danger"
+                    type="button"
+                    onClick={() => deleteTeam(team)}
+                    disabled={busy}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </li>
+            ))}
+            {!teams.length ? (
+              <li className="item" style={{ gridTemplateColumns: '1fr' }}>
+                <span className="muted">Пока нет команд.</span>
+              </li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h3>Дальше</h3>
+          <p className="muted">Создайте игроков после того, как будут команды.</p>
+        </div>
+      </div>
+
+      <Modal
+        open={modalOpen}
+        title={isEdit ? 'Редактировать команду' : 'Создать команду'}
+        description="Задайте название команды."
+        busy={modalBusy}
+        primaryAction={{
+          label: isEdit ? 'Сохранить' : 'Создать',
+          disabled: modalBusy || busy,
+          onClick: onSubmit,
+        }}
+        secondaryAction={{
+          label: 'Отмена',
+          disabled: modalBusy || busy,
+          onClick: () => setModalOpen(false),
+        }}
+        onClose={() => setModalOpen(false)}
+      >
+        <form
+          className="form-grid"
+          onSubmit={(e) => {
+            e.preventDefault()
+            onSubmit()
+          }}
+        >
+          <label>
+            Название
+            <input
+              value={teamForm.name}
+              onChange={(event) => setTeamForm({ ...teamForm, name: event.target.value })}
+              required
+              minLength={2}
+              autoFocus
+            />
+          </label>
+        </form>
+      </Modal>
+    </section>
+  )
 }
 
-const getInitialTheme = () => {
-  if (typeof window === 'undefined') {
-    return 'light'
+const PlayersPage = () => {
+  const { players, teams, teamById, apiHelpers, createOrUpdatePlayer, deletePlayer, busy } = useSportControl()
+
+  const [playerForm, setPlayerForm] = useState(apiHelpers.emptyPlayer)
+  const [editingId, setEditingId] = useState(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalBusy, setModalBusy] = useState(false)
+  const isEdit = Boolean(editingId)
+
+  const openCreate = () => {
+    setEditingId(null)
+    setPlayerForm(apiHelpers.emptyPlayer)
+    setModalOpen(true)
   }
-  const stored = window.localStorage.getItem('theme')
-  if (stored === 'light' || stored === 'dark') {
-    return stored
+
+  const openEdit = (player) => {
+    setEditingId(player.id)
+    setPlayerForm({
+      name: player.name || '',
+      teamId: player.teamId ? String(player.teamId) : '',
+    })
+    setModalOpen(true)
   }
-  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light'
+
+  const onSubmit = async () => {
+    setModalBusy(true)
+    try {
+      await createOrUpdatePlayer(editingId, {
+        name: playerForm.name.trim(),
+        teamId: playerForm.teamId === '' ? null : Number(playerForm.teamId),
+      })
+      setModalOpen(false)
+    } finally {
+      setModalBusy(false)
+    }
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div>
+          <h2>Игроки</h2>
+          <p className="muted">Назначайте игроков командам.</p>
+        </div>
+        <div className="panel-meta">
+          <span className="chip">Всего: {players.length}</span>
+          <span className="chip">Команд: {teams.length}</span>
+          <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
+            Создать игрока
+          </button>
+        </div>
+      </div>
+
+      <div className="panel-grid">
+        <div className="panel-card list-card">
+          <h3>Список игроков</h3>
+          <ul className="item-list">
+            {players.map((player) => (
+              <li key={player.id} className="item">
+                <div className="item-body">
+                  <span className="item-title">{player.name}</span>
+                  <div className="item-meta">Команда: {teamById.get(player.teamId) || 'Нет команды'}</div>
+                </div>
+                <div className="item-actions">
+                  <button className="button tiny" type="button" onClick={() => openEdit(player)} disabled={busy}>
+                    Редактировать
+                  </button>
+                  <button className="button tiny danger" type="button" onClick={() => deletePlayer(player)} disabled={busy}>
+                    Удалить
+                  </button>
+                </div>
+              </li>
+            ))}
+            {!players.length ? (
+              <li className="item" style={{ gridTemplateColumns: '1fr' }}>
+                <span className="muted">Пока нет игроков.</span>
+              </li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h3>Примечание</h3>
+          <p className="muted">Формы открываются в модальных окнах — списки остаются аккуратными и удобными.</p>
+        </div>
+      </div>
+
+      <Modal
+        open={modalOpen}
+        title={isEdit ? 'Редактировать игрока' : 'Создать игрока'}
+        description="Выберите команду для игрока."
+        busy={modalBusy}
+        primaryAction={{
+          label: isEdit ? 'Сохранить' : 'Создать',
+          disabled: modalBusy || busy,
+          onClick: onSubmit,
+        }}
+        secondaryAction={{
+          label: 'Отмена',
+          disabled: modalBusy || busy,
+          onClick: () => setModalOpen(false),
+        }}
+        onClose={() => setModalOpen(false)}
+      >
+        <form
+          className="form-grid"
+          onSubmit={(e) => {
+            e.preventDefault()
+            onSubmit()
+          }}
+        >
+          <label>
+            Имя
+            <input
+              value={playerForm.name}
+              onChange={(event) => setPlayerForm({ ...playerForm, name: event.target.value })}
+              required
+              minLength={2}
+              autoFocus
+            />
+          </label>
+
+          <label>
+            Команда
+            <select
+              value={playerForm.teamId}
+              onChange={(event) => setPlayerForm({ ...playerForm, teamId: event.target.value })}
+              required
+            >
+              <option value="">Выберите команду</option>
+              {teams.map((team) => (
+                <option key={team.id} value={String(team.id)}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </form>
+      </Modal>
+    </section>
+  )
+}
+
+const MatchesPage = () => {
+  const {
+    matches,
+    tournaments,
+    teams,
+    matchPage,
+    matchFilter,
+    setMatchFilter,
+    busy,
+    apiHelpers,
+    matchUtils,
+    setMatchFilterAndSearch,
+    resetMatchFiltersAndSearch,
+    createOrUpdateMatch,
+    deleteMatch,
+  } = useSportControl()
+
+  const [editingId, setEditingId] = useState(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalBusy, setModalBusy] = useState(false)
+  const [matchForm, setMatchForm] = useState(apiHelpers.emptyMatch)
+  const isEdit = Boolean(editingId)
+
+  const openCreate = () => {
+    setEditingId(null)
+    setMatchForm(apiHelpers.emptyMatch)
+    setModalOpen(true)
+  }
+
+  const openEdit = (match) => {
+    setEditingId(match.id)
+    setMatchForm({
+      name: match.name || '',
+      location: match.location || '',
+      date: match.date ? matchUtils.toDateInput(match.date) : '',
+      tournamentId: match.tournamentId ? String(match.tournamentId) : '',
+      homeTeamId: match.homeTeamId ? String(match.homeTeamId) : '',
+      awayTeamId: match.awayTeamId ? String(match.awayTeamId) : '',
+    })
+    setModalOpen(true)
+  }
+
+  const onSubmit = async () => {
+    setModalBusy(true)
+    try {
+      await createOrUpdateMatch(editingId, {
+        name: matchForm.name.trim(),
+        location: matchForm.location.trim(),
+        date: matchUtils.toDateTime(matchForm.date),
+        tournamentId: matchForm.tournamentId === '' ? null : Number(matchForm.tournamentId),
+        homeTeamId: matchForm.homeTeamId === '' ? null : Number(matchForm.homeTeamId),
+        awayTeamId: matchForm.awayTeamId === '' ? null : Number(matchForm.awayTeamId),
+      })
+      setModalOpen(false)
+    } finally {
+      setModalBusy(false)
+    }
+  }
+
+  const onApplyFilter = async (e) => {
+    e.preventDefault()
+    await setMatchFilterAndSearch(matchFilter)
+  }
+
+  const onReset = async () => {
+    await resetMatchFiltersAndSearch()
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div>
+          <h2>Матчи</h2>
+          <p className="muted">Фильтр по названию, месту, командам, датам и турниру.</p>
+        </div>
+        <div className="panel-meta">
+          <span className="chip">Всего: {matchPage.totalElements}</span>
+          <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
+            Создать матч
+          </button>
+        </div>
+      </div>
+
+      <div className="panel-grid triple">
+        <div className="panel-card filter-card">
+          <h3>Фильтры</h3>
+
+          <form className="form-grid" onSubmit={onApplyFilter}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+              <label>
+                Название
+                <input value={matchFilter.name} onChange={(e) => setMatchFilter({ ...matchFilter, name: e.target.value })} />
+              </label>
+
+              <label>
+                Турнир
+                <select
+                  value={matchFilter.tournamentId}
+                  onChange={(e) => setMatchFilter({ ...matchFilter, tournamentId: e.target.value })}
+                >
+                  <option value="">Все турниры</option>
+                  {tournaments.map((t) => (
+                    <option key={t.id} value={String(t.id)}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+              <label>
+                Место
+                <input value={matchFilter.location} onChange={(e) => setMatchFilter({ ...matchFilter, location: e.target.value })} />
+              </label>
+
+              <label>
+                Домашняя команда (по названию)
+                <input
+                  value={matchFilter.homeTeamName}
+                  onChange={(e) => setMatchFilter({ ...matchFilter, homeTeamName: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+              <label style={{ gridColumn: '1 / -1' }}>
+                Гостевая команда (по названию)
+                <input
+                  value={matchFilter.awayTeamName}
+                  onChange={(e) => setMatchFilter({ ...matchFilter, awayTeamName: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+              <label>
+                Дата с
+                <input
+                  type="datetime-local"
+                  value={matchFilter.dateFrom}
+                  onChange={(e) => setMatchFilter({ ...matchFilter, dateFrom: e.target.value })}
+                />
+              </label>
+
+              <label>
+                Дата по
+                <input
+                  type="datetime-local"
+                  value={matchFilter.dateTo}
+                  onChange={(e) => setMatchFilter({ ...matchFilter, dateTo: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div className="form-actions">
+              <button className="button primary" type="submit" disabled={busy}>
+                Применить
+              </button>
+              <button className="button ghost" type="button" onClick={onReset} disabled={busy}>
+                Сбросить
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div className="panel-card list-card">
+          <h3>Список матчей</h3>
+          <ul className="item-list">
+            {matches.map((match) => (
+              <li key={match.id} className="item">
+                <div className="item-body">
+                  <span className="item-title">{match.name}</span>
+
+                  <div className="item-meta">
+                    {match.location || 'Место не указано'} | {match.tournamentName || 'Турнир не задан'}
+                  </div>
+
+                  <div className="item-meta">
+                    {match.homeTeamName || 'Домашняя команда'} — против — {match.awayTeamName || 'Гостевая команда'}
+                  </div>
+
+                  <div className="item-meta">
+                    {match.date ? new Date(match.date).toLocaleString('ru-RU') : 'Дата не задана'}
+                  </div>
+                </div>
+
+                <div className="item-actions">
+                  <button className="button tiny" type="button" onClick={() => openEdit(match)} disabled={busy}>
+                    Редактировать
+                  </button>
+                  <button
+                    className="button tiny danger"
+                    type="button"
+                    onClick={() => deleteMatch(match)}
+                    disabled={busy}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </li>
+            ))}
+
+            {!matches.length ? (
+              <li className="item" style={{ gridTemplateColumns: '1fr' }}>
+                <span className="muted">Матчи по текущим фильтрам не найдены.</span>
+              </li>
+            ) : null}
+          </ul>
+        </div>
+
+        <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h3>Статус</h3>
+          <p className="muted">Фильтры применяются по кнопке «Применить».</p>
+
+          <div className="pill-row">
+            <span className="pill">Страница {matchPage.page + 1}</span>
+            <span className="pill">Всего страниц {matchPage.totalPages || 1}</span>
+          </div>
+        </div>
+      </div>
+
+      <Modal
+        open={modalOpen}
+        title={isEdit ? 'Редактировать матч' : 'Создать матч'}
+        description="Заполните данные матча и сохраните."
+        busy={modalBusy}
+        primaryAction={{
+          label: isEdit ? 'Сохранить' : 'Создать',
+          disabled: modalBusy || busy,
+          onClick: onSubmit,
+        }}
+        secondaryAction={{
+          label: 'Отмена',
+          disabled: modalBusy || busy,
+          onClick: () => setModalOpen(false),
+        }}
+        onClose={() => setModalOpen(false)}
+      >
+        <form
+          className="form-grid"
+          onSubmit={(e) => {
+            e.preventDefault()
+            onSubmit()
+          }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+            <label>
+              Название
+              <input
+                value={matchForm.name}
+                onChange={(e) => setMatchForm({ ...matchForm, name: e.target.value })}
+                required
+                minLength={2}
+                autoFocus
+              />
+            </label>
+
+            <label>
+              Турнир
+              <select
+                value={matchForm.tournamentId}
+                onChange={(e) => setMatchForm({ ...matchForm, tournamentId: e.target.value })}
+                required
+              >
+                <option value="">Выберите турнир</option>
+                {tournaments.map((t) => (
+                  <option key={t.id} value={String(t.id)}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+            <label>
+              Место
+              <input
+                value={matchForm.location}
+                onChange={(e) => setMatchForm({ ...matchForm, location: e.target.value })}
+                required
+              />
+            </label>
+
+            <label>
+              Дата и время
+              <input
+                type="datetime-local"
+                value={matchForm.date}
+                onChange={(e) => setMatchForm({ ...matchForm, date: e.target.value })}
+                required
+              />
+            </label>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+            <label>
+              Домашняя команда
+              <select
+                value={matchForm.homeTeamId}
+                onChange={(e) => setMatchForm({ ...matchForm, homeTeamId: e.target.value })}
+                required
+              >
+                <option value="">Выберите домашнюю команду</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={String(team.id)}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Гостевая команда
+              <select
+                value={matchForm.awayTeamId}
+                onChange={(e) => setMatchForm({ ...matchForm, awayTeamId: e.target.value })}
+                required
+              >
+                <option value="">Выберите гостевую команду</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={String(team.id)}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </form>
+      </Modal>
+    </section>
+  )
+}
+
+const AppRoutes = () => {
+  const routesConfig = useMemo(
+    () => ({
+      default: 'sports',
+      byKey: {
+        sports: <SportsPage />,
+        tournaments: <TournamentsPage />,
+        teams: <TeamsPage />,
+        players: <PlayersPage />,
+        matches: <MatchesPage />,
+      },
+    }),
+    [],
+  )
+
+  const { routeKey, route } = useHashRoute(routesConfig)
+
+  return <AppShell activeRouteKey={routeKey}>{route}</AppShell>
 }
 
 function App() {
-  const [theme, setTheme] = useState(getInitialTheme)
-  const isDark = theme === 'dark'
-  const [sports, setSports] = useState([])
-  const [teams, setTeams] = useState([])
-  const [players, setPlayers] = useState([])
-  const [tournaments, setTournaments] = useState([])
-  const [matches, setMatches] = useState([])
-  const [matchPage, setMatchPage] = useState({
-    page: 0,
-    size: 20,
-    totalPages: 0,
-    totalElements: 0,
-  })
-
-  const [status, setStatus] = useState({ type: 'idle', message: '' })
-  const [busy, setBusy] = useState(false)
-
-  const [sportForm, setSportForm] = useState(emptySport)
-  const [sportEditingId, setSportEditingId] = useState(null)
-
-  const [teamForm, setTeamForm] = useState(emptyTeam)
-  const [teamEditingId, setTeamEditingId] = useState(null)
-
-  const [playerForm, setPlayerForm] = useState(emptyPlayer)
-  const [playerEditingId, setPlayerEditingId] = useState(null)
-
-  const [tournamentForm, setTournamentForm] = useState(emptyTournament)
-  const [tournamentEditingId, setTournamentEditingId] = useState(null)
-
-  const [matchForm, setMatchForm] = useState(emptyMatch)
-  const [matchEditingId, setMatchEditingId] = useState(null)
-
-  const [matchFilter, setMatchFilter] = useState(emptyMatchFilter)
-  const [matchQueryType, setMatchQueryType] = useState('jpql')
-
-  const teamById = useMemo(
-    () => new Map(teams.map((team) => [team.id, team.name])),
-    [teams],
-  )
-  const sportById = useMemo(
-    () => new Map(sports.map((sport) => [sport.id, sport.name])),
-    [sports],
-  )
-
-  const playersByTeam = useMemo(() => {
-    const map = new Map()
-    players.forEach((player) => {
-      if (!player.teamId) {
-        return
-      }
-      const existing = map.get(player.teamId) || []
-      existing.push(player)
-      map.set(player.teamId, existing)
-    })
-    return map
-  }, [players])
-
-  const tournamentsBySport = useMemo(() => {
-    const map = new Map()
-    tournaments.forEach((tournament) => {
-      if (!tournament.sportId) {
-        return
-      }
-      const existing = map.get(tournament.sportId) || []
-      existing.push(tournament)
-      map.set(tournament.sportId, existing)
-    })
-    return map
-  }, [tournaments])
-
-  const teamsByTournament = useMemo(() => {
-    const map = new Map()
-    matches.forEach((match) => {
-      if (!match.tournamentId) {
-        return
-      }
-      const existing = map.get(match.tournamentId) || new Set()
-      if (match.homeTeamId) {
-        existing.add(match.homeTeamId)
-      }
-      if (match.awayTeamId) {
-        existing.add(match.awayTeamId)
-      }
-      map.set(match.tournamentId, existing)
-    })
-    return map
-  }, [matches])
-
-  const runTask = async (label, task) => {
-    setBusy(true)
-    setStatus({ type: 'info', message: label })
-    try {
-      await task()
-      setStatus({ type: 'success', message: `${label} completed` })
-      return true
-    } catch (error) {
-      setStatus({ type: 'error', message: error?.message || 'Request failed' })
-      return false
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  useEffect(() => {
-    const root = document.documentElement
-    root.dataset.theme = theme
-    window.localStorage.setItem('theme', theme)
-  }, [theme])
-
-  const loadSports = async () => {
-    const data = await apiFetch('/sports')
-    setSports(data || [])
-  }
-
-  const loadTeams = async () => {
-    const data = await apiFetch('/teams')
-    setTeams(data || [])
-  }
-
-  const loadPlayers = async () => {
-    const data = await apiFetch('/players?page=0&size=200')
-    setPlayers(data?.content || [])
-  }
-
-  const loadTournaments = async () => {
-    const data = await apiFetch('/tournaments')
-    setTournaments(data || [])
-  }
-
-  const loadMatches = async () => {
-    const data = await apiFetch('/matches?page=0&size=50')
-    setMatches(data?.content || [])
-    setMatchPage({
-      page: data?.number ?? 0,
-      size: data?.size ?? 50,
-      totalPages: data?.totalPages ?? 1,
-      totalElements: data?.totalElements ?? (data?.content || []).length,
-    })
-  }
-
-  const runMatchSearch = async (page = 0, filterOverride = null) => {
-    const filter = filterOverride || matchFilter
-    const params = new URLSearchParams({
-      page: String(page),
-      size: String(matchPage.size || 20),
-      queryType: matchQueryType,
-    })
-
-    if (filter.name) params.set('name', filter.name)
-    if (filter.location) params.set('location', filter.location)
-    if (filter.tournamentId) params.set('tournamentId', filter.tournamentId)
-    if (filter.homeTeamName) params.set('homeTeamName', filter.homeTeamName)
-    if (filter.awayTeamName) params.set('awayTeamName', filter.awayTeamName)
-    if (filter.dateFrom) params.set('dateFrom', toDateTime(filter.dateFrom))
-    if (filter.dateTo) params.set('dateTo', toDateTime(filter.dateTo))
-
-    const data = await apiFetch(`/matches/search?${params.toString()}`)
-    setMatches(data?.content || [])
-    setMatchPage({
-      page: data?.number ?? page,
-      size: data?.size ?? matchPage.size,
-      totalPages: data?.totalPages ?? 1,
-      totalElements: data?.totalElements ?? (data?.content || []).length,
-    })
-  }
-
-  const refreshAll = async () => {
-    await runTask('Refreshing data', async () => {
-      const results = await Promise.allSettled([
-        loadSports(),
-        loadTeams(),
-        loadPlayers(),
-        loadTournaments(),
-        loadMatches(),
-      ])
-      const failures = results.filter((result) => result.status === 'rejected')
-      if (failures.length) {
-        throw failures[0].reason
-      }
-    })
-  }
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
-  }
-
-  useEffect(() => {
-    refreshAll()
-  }, [])
-
-  const handleSportSubmit = async (event) => {
-    event.preventDefault()
-    const payload = { name: sportForm.name.trim() }
-    const label = sportEditingId ? 'Updating sport' : 'Creating sport'
-    const ok = await runTask(label, async () => {
-      if (sportEditingId) {
-        await apiFetch(`/sports/${sportEditingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        })
-      } else {
-        await apiFetch('/sports', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        })
-      }
-      await loadSports()
-    })
-    if (ok) {
-      setSportForm(emptySport)
-      setSportEditingId(null)
-    }
-  }
-
-  const handleSportDelete = async (sport) => {
-    if (!window.confirm(`Delete sport "${sport.name}"?`)) {
-      return
-    }
-    await runTask('Deleting sport', async () => {
-      await apiFetch(`/sports/${sport.id}`, { method: 'DELETE' })
-      await loadSports()
-      await loadTournaments()
-    })
-  }
-
-  const handleTeamSubmit = async (event) => {
-    event.preventDefault()
-    const payload = { name: teamForm.name.trim() }
-    const label = teamEditingId ? 'Updating team' : 'Creating team'
-    const ok = await runTask(label, async () => {
-      if (teamEditingId) {
-        await apiFetch(`/teams/${teamEditingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        })
-      } else {
-        await apiFetch('/teams', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        })
-      }
-      await loadTeams()
-    })
-    if (ok) {
-      setTeamForm(emptyTeam)
-      setTeamEditingId(null)
-    }
-  }
-
-  const handleTeamDelete = async (team) => {
-    if (!window.confirm(`Delete team "${team.name}"?`)) {
-      return
-    }
-    await runTask('Deleting team', async () => {
-      await apiFetch(`/teams/${team.id}`, { method: 'DELETE' })
-      await loadTeams()
-      await loadPlayers()
-      await loadMatches()
-    })
-  }
-
-  const handlePlayerSubmit = async (event) => {
-    event.preventDefault()
-    const payload = {
-      name: playerForm.name.trim(),
-      teamId: toNumber(playerForm.teamId),
-    }
-    const label = playerEditingId ? 'Updating player' : 'Creating player'
-    const ok = await runTask(label, async () => {
-      if (playerEditingId) {
-        await apiFetch(`/players/${playerEditingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        })
-      } else {
-        await apiFetch('/players', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        })
-      }
-      await loadPlayers()
-    })
-    if (ok) {
-      setPlayerForm(emptyPlayer)
-      setPlayerEditingId(null)
-    }
-  }
-
-  const handlePlayerDelete = async (player) => {
-    if (!window.confirm(`Delete player "${player.name}"?`)) {
-      return
-    }
-    await runTask('Deleting player', async () => {
-      await apiFetch(`/players/${player.id}`, { method: 'DELETE' })
-      await loadPlayers()
-    })
-  }
-
-  const handleTournamentSubmit = async (event) => {
-    event.preventDefault()
-    const payload = {
-      name: tournamentForm.name.trim(),
-      sportId: toNumber(tournamentForm.sportId),
-    }
-    const label = tournamentEditingId ? 'Updating tournament' : 'Creating tournament'
-    const ok = await runTask(label, async () => {
-      if (tournamentEditingId) {
-        await apiFetch(`/tournaments/${tournamentEditingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        })
-      } else {
-        await apiFetch('/tournaments', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        })
-      }
-      await loadTournaments()
-    })
-    if (ok) {
-      setTournamentForm(emptyTournament)
-      setTournamentEditingId(null)
-    }
-  }
-
-  const handleTournamentDelete = async (tournament) => {
-    if (!window.confirm(`Delete tournament "${tournament.name}"?`)) {
-      return
-    }
-    await runTask('Deleting tournament', async () => {
-      await apiFetch(`/tournaments/${tournament.id}`, { method: 'DELETE' })
-      await loadTournaments()
-      await loadMatches()
-    })
-  }
-
-  const handleMatchSubmit = async (event) => {
-    event.preventDefault()
-    const payload = {
-      name: matchForm.name.trim(),
-      location: matchForm.location.trim(),
-      date: toDateTime(matchForm.date),
-      tournamentId: toNumber(matchForm.tournamentId),
-      homeTeamId: toNumber(matchForm.homeTeamId),
-      awayTeamId: toNumber(matchForm.awayTeamId),
-    }
-    const label = matchEditingId ? 'Updating match' : 'Creating match'
-    const ok = await runTask(label, async () => {
-      if (matchEditingId) {
-        await apiFetch(`/matches/${matchEditingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        })
-      } else {
-        await apiFetch('/matches', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        })
-      }
-      await runMatchSearch(matchPage.page)
-    })
-    if (ok) {
-      setMatchForm(emptyMatch)
-      setMatchEditingId(null)
-    }
-  }
-
-  const handleMatchDelete = async (match) => {
-    if (!window.confirm(`Delete match "${match.name}"?`)) {
-      return
-    }
-    await runTask('Deleting match', async () => {
-      await apiFetch(`/matches/${match.id}`, { method: 'DELETE' })
-      await runMatchSearch(matchPage.page)
-    })
-  }
-
-  const handleMatchSearch = async (event) => {
-    event.preventDefault()
-    await runTask('Searching matches', async () => {
-      await runMatchSearch(0)
-    })
-  }
-
-  const handleMatchReset = async () => {
-    setMatchFilter(emptyMatchFilter)
-    await runTask('Resetting match filters', async () => {
-      await runMatchSearch(0, emptyMatchFilter)
-    })
-  }
-
-  const stats = [
-    { label: 'Sports', value: sports.length },
-    { label: 'Tournaments', value: tournaments.length },
-    { label: 'Teams', value: teams.length },
-    { label: 'Players', value: players.length },
-    { label: 'Matches', value: matches.length },
-  ]
-
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand">
-          <p className="eyebrow">SportControl</p>
-          <h1>Operations dashboard</h1>
-          <p className="lede">
-            Manage sports, tournaments, teams, players, and matches in one place.
-            Keep relationships visible while you work.
-          </p>
-          <div className="action-row">
-            <button className="button primary" onClick={refreshAll} disabled={busy}>
-              Refresh data
-            </button>
-            <button
-              className="button ghost"
-              onClick={() => runMatchSearch(0)}
-              disabled={busy}
-            >
-              Refresh matches
-            </button>
-            <button
-              className="button theme-toggle"
-              type="button"
-              onClick={toggleTheme}
-              aria-pressed={isDark}
-            >
-              {isDark ? 'Light theme' : 'Dark theme'}
-            </button>
-          </div>
-        </div>
-        <div className="summary-card">
-          <div className="summary-header">
-            <span>Live summary</span>
-            <span className="chip">{new Date().toLocaleDateString()}</span>
-          </div>
-          <div className="summary-grid">
-            {stats.map((stat) => (
-              <div key={stat.label} className="summary-stat">
-                <span className="summary-label">{stat.label}</span>
-                <span className="summary-value">{stat.value}</span>
-              </div>
-            ))}
-          </div>
-          <div className="summary-footer">
-            <span className="muted">Matches page</span>
-            <span className="chip">
-              {matchPage.page + 1} / {matchPage.totalPages || 1}
-            </span>
-          </div>
-        </div>
-      </header>
-
-      {status.message ? (
-        <div className={`status ${status.type}`}>{status.message}</div>
-      ) : null}
-
-      <div className="layout">
-        <aside className="side-panel">
-          <div className="side-card">
-            <h3>Navigation</h3>
-            <nav className="section-nav">
-              <a href="#sports">Sports</a>
-              <a href="#tournaments">Tournaments</a>
-              <a href="#teams">Teams</a>
-              <a href="#players">Players</a>
-              <a href="#matches">Matches</a>
-            </nav>
-          </div>
-          <div className="side-card">
-            <h3>Data source</h3>
-            <div className="pill-row">
-              <span className="pill">API: {API_BASE}</span>
-              <span className="pill">Mode: SPA client</span>
-            </div>
-          </div>
-          <div className="side-card">
-            <h3>Relationships</h3>
-            <ul className="relationship-list">
-              <li>One-to-many: sports to tournaments</li>
-              <li>One-to-many: teams to players</li>
-              <li>Many-to-many: tournaments to teams (from matches)</li>
-            </ul>
-          </div>
-        </aside>
-
-        <main className="content">
-          <section id="sports" className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>Sports</h2>
-                <p className="muted">One-to-many relation between sports and tournaments.</p>
-              </div>
-            </div>
-            <div className="panel-grid">
-              <div className="panel-card">
-                <h3>Sports list</h3>
-                <ul className="item-list">
-                  {sports.map((sport) => (
-                    <li key={sport.id} className="item">
-                      <div className="item-body">
-                        <span className="item-title">{sport.name}</span>
-                        <div className="item-meta">
-                          {(tournamentsBySport.get(sport.id) || []).map((t) => (
-                            <span key={t.id} className="tag">
-                              {t.name}
-                            </span>
-                          ))}
-                          {!tournamentsBySport.get(sport.id)?.length && (
-                            <span className="muted">No tournaments yet</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="item-actions">
-                        <button
-                          className="button tiny"
-                          type="button"
-                          onClick={() => {
-                            setSportEditingId(sport.id)
-                            setSportForm({ name: sport.name || '' })
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="button tiny danger"
-                          type="button"
-                          onClick={() => handleSportDelete(sport)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="panel-card">
-                <h3>{sportEditingId ? 'Edit sport' : 'Create sport'}</h3>
-                <form className="form-grid" onSubmit={handleSportSubmit}>
-                  <label>
-                    Name
-                    <input
-                      value={sportForm.name}
-                      onChange={(event) =>
-                        setSportForm({ ...sportForm, name: event.target.value })
-                      }
-                      required
-                      minLength={2}
-                    />
-                  </label>
-                  <div className="form-actions">
-                    <button className="button primary" type="submit" disabled={busy}>
-                      {sportEditingId ? 'Save sport' : 'Add sport'}
-                    </button>
-                    {sportEditingId ? (
-                      <button
-                        className="button ghost"
-                        type="button"
-                        onClick={() => {
-                          setSportEditingId(null)
-                          setSportForm(emptySport)
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-              </div>
-            </div>
-          </section>
-
-          <section id="tournaments" className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>Tournaments</h2>
-                <p className="muted">
-                  Many-to-many relation between tournaments and teams (from matches).
-                </p>
-              </div>
-            </div>
-            <div className="panel-grid">
-              <div className="panel-card">
-                <h3>Tournament list</h3>
-                <ul className="item-list">
-                  {tournaments.map((tournament) => (
-                    <li key={tournament.id} className="item">
-                      <div className="item-body">
-                        <span className="item-title">{tournament.name}</span>
-                        <div className="item-meta">
-                          {sportById.get(tournament.sportId) || 'Unknown sport'}
-                        </div>
-                        <div className="item-meta">
-                          {[...(teamsByTournament.get(tournament.id) || [])].map(
-                            (teamId) => (
-                              <span key={teamId} className="tag">
-                                {teamById.get(teamId) || `Team #${teamId}`}
-                              </span>
-                            ),
-                          )}
-                          {!teamsByTournament.get(tournament.id)?.size && (
-                            <span className="muted">No teams yet</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="item-actions">
-                        <button
-                          className="button tiny"
-                          type="button"
-                          onClick={() => {
-                            setTournamentEditingId(tournament.id)
-                            setTournamentForm({
-                              name: tournament.name || '',
-                              sportId: tournament.sportId
-                                ? String(tournament.sportId)
-                                : '',
-                            })
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="button tiny danger"
-                          type="button"
-                          onClick={() => handleTournamentDelete(tournament)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="panel-card">
-                <h3>{tournamentEditingId ? 'Edit tournament' : 'Create tournament'}</h3>
-                <form className="form-grid" onSubmit={handleTournamentSubmit}>
-                  <label>
-                    Name
-                    <input
-                      value={tournamentForm.name}
-                      onChange={(event) =>
-                        setTournamentForm({
-                          ...tournamentForm,
-                          name: event.target.value,
-                        })
-                      }
-                      required
-                      minLength={2}
-                    />
-                  </label>
-                  <label>
-                    Sport
-                    <select
-                      value={tournamentForm.sportId}
-                      onChange={(event) =>
-                        setTournamentForm({
-                          ...tournamentForm,
-                          sportId: event.target.value,
-                        })
-                      }
-                      required
-                    >
-                      <option value="">Select a sport</option>
-                      {sports.map((sport) => (
-                        <option key={sport.id} value={sport.id}>
-                          {sport.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="form-actions">
-                    <button className="button primary" type="submit" disabled={busy}>
-                      {tournamentEditingId ? 'Save tournament' : 'Add tournament'}
-                    </button>
-                    {tournamentEditingId ? (
-                      <button
-                        className="button ghost"
-                        type="button"
-                        onClick={() => {
-                          setTournamentEditingId(null)
-                          setTournamentForm(emptyTournament)
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-              </div>
-            </div>
-          </section>
-
-          <section id="teams" className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>Teams</h2>
-                <p className="muted">One-to-many relation between teams and players.</p>
-              </div>
-            </div>
-            <div className="panel-grid">
-              <div className="panel-card">
-                <h3>Teams list</h3>
-                <ul className="item-list">
-                  {teams.map((team) => (
-                    <li key={team.id} className="item">
-                      <div className="item-body">
-                        <span className="item-title">{team.name}</span>
-                        <div className="item-meta">
-                          {(playersByTeam.get(team.id) || []).map((player) => (
-                            <span key={player.id} className="tag">
-                              {player.name}
-                            </span>
-                          ))}
-                          {!playersByTeam.get(team.id)?.length && (
-                            <span className="muted">No players yet</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="item-actions">
-                        <button
-                          className="button tiny"
-                          type="button"
-                          onClick={() => {
-                            setTeamEditingId(team.id)
-                            setTeamForm({ name: team.name || '' })
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="button tiny danger"
-                          type="button"
-                          onClick={() => handleTeamDelete(team)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="panel-card">
-                <h3>{teamEditingId ? 'Edit team' : 'Create team'}</h3>
-                <form className="form-grid" onSubmit={handleTeamSubmit}>
-                  <label>
-                    Name
-                    <input
-                      value={teamForm.name}
-                      onChange={(event) =>
-                        setTeamForm({ ...teamForm, name: event.target.value })
-                      }
-                      required
-                      minLength={2}
-                    />
-                  </label>
-                  <div className="form-actions">
-                    <button className="button primary" type="submit" disabled={busy}>
-                      {teamEditingId ? 'Save team' : 'Add team'}
-                    </button>
-                    {teamEditingId ? (
-                      <button
-                        className="button ghost"
-                        type="button"
-                        onClick={() => {
-                          setTeamEditingId(null)
-                          setTeamForm(emptyTeam)
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-              </div>
-            </div>
-          </section>
-
-          <section id="players" className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>Players</h2>
-                <p className="muted">Assign players to teams.</p>
-              </div>
-            </div>
-            <div className="panel-grid">
-              <div className="panel-card">
-                <h3>Players list</h3>
-                <ul className="item-list">
-                  {players.map((player) => (
-                    <li key={player.id} className="item">
-                      <div className="item-body">
-                        <span className="item-title">{player.name}</span>
-                        <div className="item-meta">
-                          Team: {teamById.get(player.teamId) || 'No team'}
-                        </div>
-                      </div>
-                      <div className="item-actions">
-                        <button
-                          className="button tiny"
-                          type="button"
-                          onClick={() => {
-                            setPlayerEditingId(player.id)
-                            setPlayerForm({
-                              name: player.name || '',
-                              teamId: player.teamId ? String(player.teamId) : '',
-                            })
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="button tiny danger"
-                          type="button"
-                          onClick={() => handlePlayerDelete(player)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="panel-card">
-                <h3>{playerEditingId ? 'Edit player' : 'Create player'}</h3>
-                <form className="form-grid" onSubmit={handlePlayerSubmit}>
-                  <label>
-                    Name
-                    <input
-                      value={playerForm.name}
-                      onChange={(event) =>
-                        setPlayerForm({ ...playerForm, name: event.target.value })
-                      }
-                      required
-                      minLength={2}
-                    />
-                  </label>
-                  <label>
-                    Team
-                    <select
-                      value={playerForm.teamId}
-                      onChange={(event) =>
-                        setPlayerForm({ ...playerForm, teamId: event.target.value })
-                      }
-                      required
-                    >
-                      <option value="">Select a team</option>
-                      {teams.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="form-actions">
-                    <button className="button primary" type="submit" disabled={busy}>
-                      {playerEditingId ? 'Save player' : 'Add player'}
-                    </button>
-                    {playerEditingId ? (
-                      <button
-                        className="button ghost"
-                        type="button"
-                        onClick={() => {
-                          setPlayerEditingId(null)
-                          setPlayerForm(emptyPlayer)
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-              </div>
-            </div>
-          </section>
-
-          <section id="matches" className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>Matches</h2>
-                <p className="muted">Filter by name, teams, dates, and tournament.</p>
-              </div>
-              <div className="panel-meta">
-                <span className="chip">Total: {matchPage.totalElements}</span>
-                <div className="pager">
-                  <button
-                    className="button tiny"
-                    type="button"
-                    onClick={() => runMatchSearch(matchPage.page - 1)}
-                    disabled={busy || matchPage.page <= 0}
-                  >
-                    Prev
-                  </button>
-                  <button
-                    className="button tiny"
-                    type="button"
-                    onClick={() => runMatchSearch(matchPage.page + 1)}
-                    disabled={
-                      busy ||
-                      matchPage.page + 1 >= (matchPage.totalPages || 1)
-                    }
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div className="panel-grid triple">
-              <div className="panel-card">
-                <h3>Filter matches</h3>
-                <form className="form-grid" onSubmit={handleMatchSearch}>
-                  <label>
-                    Name
-                    <input
-                      value={matchFilter.name}
-                      onChange={(event) =>
-                        setMatchFilter({ ...matchFilter, name: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Location
-                    <input
-                      value={matchFilter.location}
-                      onChange={(event) =>
-                        setMatchFilter({
-                          ...matchFilter,
-                          location: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Tournament
-                    <select
-                      value={matchFilter.tournamentId}
-                      onChange={(event) =>
-                        setMatchFilter({
-                          ...matchFilter,
-                          tournamentId: event.target.value,
-                        })
-                      }
-                    >
-                      <option value="">All tournaments</option>
-                      {tournaments.map((tournament) => (
-                        <option key={tournament.id} value={tournament.id}>
-                          {tournament.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Home team name
-                    <input
-                      value={matchFilter.homeTeamName}
-                      onChange={(event) =>
-                        setMatchFilter({
-                          ...matchFilter,
-                          homeTeamName: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Away team name
-                    <input
-                      value={matchFilter.awayTeamName}
-                      onChange={(event) =>
-                        setMatchFilter({
-                          ...matchFilter,
-                          awayTeamName: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Date from
-                    <input
-                      type="datetime-local"
-                      value={matchFilter.dateFrom}
-                      onChange={(event) =>
-                        setMatchFilter({
-                          ...matchFilter,
-                          dateFrom: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Date to
-                    <input
-                      type="datetime-local"
-                      value={matchFilter.dateTo}
-                      onChange={(event) =>
-                        setMatchFilter({
-                          ...matchFilter,
-                          dateTo: event.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Query type
-                    <select
-                      value={matchQueryType}
-                      onChange={(event) => setMatchQueryType(event.target.value)}
-                    >
-                      <option value="jpql">JPQL</option>
-                      <option value="native">Native</option>
-                    </select>
-                  </label>
-                  <div className="form-actions">
-                    <button className="button primary" type="submit" disabled={busy}>
-                      Apply filter
-                    </button>
-                    <button
-                      className="button ghost"
-                      type="button"
-                      onClick={handleMatchReset}
-                      disabled={busy}
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </form>
-              </div>
-              <div className="panel-card">
-                <h3>Match list</h3>
-                <ul className="item-list">
-                  {matches.map((match) => (
-                    <li key={match.id} className="item">
-                      <div className="item-body">
-                        <span className="item-title">{match.name}</span>
-                        <div className="item-meta">
-                          {match.location || 'Location TBD'} |{' '}
-                          {match.tournamentName || 'No tournament'}
-                        </div>
-                        <div className="item-meta">
-                          {match.homeTeamName || 'Home team'} vs{' '}
-                          {match.awayTeamName || 'Away team'}
-                        </div>
-                        <div className="item-meta">
-                          {match.date ? new Date(match.date).toLocaleString() : 'Date not set'}
-                        </div>
-                      </div>
-                      <div className="item-actions">
-                        <button
-                          className="button tiny"
-                          type="button"
-                          onClick={() => {
-                            setMatchEditingId(match.id)
-                            setMatchForm({
-                              name: match.name || '',
-                              location: match.location || '',
-                              date: toDateInput(match.date),
-                              tournamentId: match.tournamentId
-                                ? String(match.tournamentId)
-                                : '',
-                              homeTeamId: match.homeTeamId
-                                ? String(match.homeTeamId)
-                                : '',
-                              awayTeamId: match.awayTeamId
-                                ? String(match.awayTeamId)
-                                : '',
-                            })
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="button tiny danger"
-                          type="button"
-                          onClick={() => handleMatchDelete(match)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="panel-card">
-                <h3>{matchEditingId ? 'Edit match' : 'Create match'}</h3>
-                <form className="form-grid" onSubmit={handleMatchSubmit}>
-                  <label>
-                    Name
-                    <input
-                      value={matchForm.name}
-                      onChange={(event) =>
-                        setMatchForm({ ...matchForm, name: event.target.value })
-                      }
-                      required
-                      minLength={2}
-                    />
-                  </label>
-                  <label>
-                    Location
-                    <input
-                      value={matchForm.location}
-                      onChange={(event) =>
-                        setMatchForm({
-                          ...matchForm,
-                          location: event.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </label>
-                  <label>
-                    Date and time
-                    <input
-                      type="datetime-local"
-                      value={matchForm.date}
-                      onChange={(event) =>
-                        setMatchForm({ ...matchForm, date: event.target.value })
-                      }
-                      required
-                    />
-                  </label>
-                  <label>
-                    Tournament
-                    <select
-                      value={matchForm.tournamentId}
-                      onChange={(event) =>
-                        setMatchForm({
-                          ...matchForm,
-                          tournamentId: event.target.value,
-                        })
-                      }
-                      required
-                    >
-                      <option value="">Select a tournament</option>
-                      {tournaments.map((tournament) => (
-                        <option key={tournament.id} value={tournament.id}>
-                          {tournament.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Home team
-                    <select
-                      value={matchForm.homeTeamId}
-                      onChange={(event) =>
-                        setMatchForm({
-                          ...matchForm,
-                          homeTeamId: event.target.value,
-                        })
-                      }
-                      required
-                    >
-                      <option value="">Select home team</option>
-                      {teams.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Away team
-                    <select
-                      value={matchForm.awayTeamId}
-                      onChange={(event) =>
-                        setMatchForm({
-                          ...matchForm,
-                          awayTeamId: event.target.value,
-                        })
-                      }
-                      required
-                    >
-                      <option value="">Select away team</option>
-                      {teams.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="form-actions">
-                    <button className="button primary" type="submit" disabled={busy}>
-                      {matchEditingId ? 'Save match' : 'Add match'}
-                    </button>
-                    {matchEditingId ? (
-                      <button
-                        className="button ghost"
-                        type="button"
-                        onClick={() => {
-                          setMatchEditingId(null)
-                          setMatchForm(emptyMatch)
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    ) : null}
-                  </div>
-                </form>
-              </div>
-            </div>
-          </section>
-        </main>
-      </div>
-    </div>
+    <SportControlProvider>
+      <AppRoutes />
+    </SportControlProvider>
   )
 }
 

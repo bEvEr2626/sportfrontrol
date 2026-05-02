@@ -1,0 +1,391 @@
+import { useEffect, useMemo, useState } from 'react'
+import { apiFetch } from '../api/client'
+import { SportControlContext } from './SportControlContext'
+
+const emptySport = { name: '' }
+const emptyTeam = { name: '' }
+const emptyPlayer = { name: '', teamId: '' }
+const emptyTournament = { name: '', sportId: '' }
+const emptyMatch = {
+  name: '',
+  location: '',
+  date: '',
+  tournamentId: '',
+  homeTeamId: '',
+  awayTeamId: '',
+}
+const emptyMatchFilter = {
+  name: '',
+  location: '',
+  tournamentId: '',
+  homeTeamName: '',
+  awayTeamName: '',
+  dateFrom: '',
+  dateTo: '',
+}
+
+const toNumber = (value) => (value === '' || value == null ? null : Number(value))
+const toDateTime = (value) => (value ? (value.length === 16 ? `${value}:00` : value) : null)
+const toDateInput = (value) => (value ? value.slice(0, 16) : '')
+
+const getInitialTheme = () => {
+  if (typeof window === 'undefined') return 'light'
+  const stored = window.localStorage.getItem('theme')
+  if (stored === 'light' || stored === 'dark') return stored
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+export const SportControlProvider = ({ children }) => {
+  const [theme, setTheme] = useState(getInitialTheme)
+  const isDark = theme === 'dark'
+
+  const [sports, setSports] = useState([])
+  const [teams, setTeams] = useState([])
+  const [players, setPlayers] = useState([])
+  const [tournaments, setTournaments] = useState([])
+  const [matches, setMatches] = useState([])
+  const [matchPage, setMatchPage] = useState({
+    page: 0,
+    size: 20,
+    totalPages: 0,
+    totalElements: 0,
+  })
+
+  const [status, setStatus] = useState({ type: 'idle', message: '' })
+  const [busy, setBusy] = useState(false)
+
+  const [matchFilter, setMatchFilter] = useState(emptyMatchFilter)
+
+  const teamById = useMemo(() => new Map(teams.map((team) => [team.id, team.name])), [teams])
+  const sportById = useMemo(() => new Map(sports.map((sport) => [sport.id, sport.name])), [sports])
+
+  const playersByTeam = useMemo(() => {
+    const map = new Map()
+    players.forEach((player) => {
+      if (!player.teamId) return
+      const existing = map.get(player.teamId) || []
+      existing.push(player)
+      map.set(player.teamId, existing)
+    })
+    return map
+  }, [players])
+
+  const tournamentsBySport = useMemo(() => {
+    const map = new Map()
+    tournaments.forEach((tournament) => {
+      if (!tournament.sportId) return
+      const existing = map.get(tournament.sportId) || []
+      existing.push(tournament)
+      map.set(tournament.sportId, existing)
+    })
+    return map
+  }, [tournaments])
+
+  const teamsByTournament = useMemo(() => {
+    const map = new Map()
+    matches.forEach((match) => {
+      if (!match.tournamentId) return
+      const existing = map.get(match.tournamentId) || new Set()
+      if (match.homeTeamId) existing.add(match.homeTeamId)
+      if (match.awayTeamId) existing.add(match.awayTeamId)
+      map.set(match.tournamentId, existing)
+    })
+    return map
+  }, [matches])
+
+  const runTask = async (label, task) => {
+    setBusy(true)
+    setStatus({ type: 'info', message: label })
+    try {
+      await task()
+      setStatus({ type: 'success', message: `${label} выполнено` })
+      return true
+    } catch (error) {
+      setStatus({ type: 'error', message: error?.message || 'Запрос не выполнен' })
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.theme = theme
+    window.localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
+
+  const loadSports = async () => {
+    const data = await apiFetch('/sports')
+    setSports(data || [])
+  }
+
+  const loadTeams = async () => {
+    const data = await apiFetch('/teams')
+    setTeams(data || [])
+  }
+
+  const loadPlayers = async () => {
+    const data = await apiFetch('/players?page=0&size=200')
+    setPlayers(data?.content || [])
+  }
+
+  const loadTournaments = async () => {
+    const data = await apiFetch('/tournaments')
+    setTournaments(data || [])
+  }
+
+  const loadMatches = async () => {
+    const data = await apiFetch('/matches?page=0&size=50')
+    setMatches(data?.content || [])
+    setMatchPage({
+      page: data?.number ?? 0,
+      size: data?.size ?? 50,
+      totalPages: data?.totalPages ?? 1,
+      totalElements: data?.totalElements ?? (data?.content || []).length,
+    })
+  }
+
+  const runMatchSearch = async (page = 0, filterOverride = null) => {
+    const filter = filterOverride || matchFilter
+    const params = new URLSearchParams({
+      page: String(page),
+      size: String(matchPage.size || 20),
+    })
+
+    if (filter.name) params.set('name', filter.name)
+    if (filter.location) params.set('location', filter.location)
+    if (filter.tournamentId) params.set('tournamentId', filter.tournamentId)
+    if (filter.homeTeamName) params.set('homeTeamName', filter.homeTeamName)
+    if (filter.awayTeamName) params.set('awayTeamName', filter.awayTeamName)
+    if (filter.dateFrom) params.set('dateFrom', toDateTime(filter.dateFrom))
+    if (filter.dateTo) params.set('dateTo', toDateTime(filter.dateTo))
+
+    const data = await apiFetch(`/matches/search?${params.toString()}`)
+    setMatches(data?.content || [])
+    setMatchPage({
+      page: data?.number ?? page,
+      size: data?.size ?? matchPage.size,
+      totalPages: data?.totalPages ?? 1,
+      totalElements: data?.totalElements ?? (data?.content || []).length,
+    })
+  }
+
+  const refreshAll = async () => {
+    await runTask('Обновление данных', async () => {
+      const results = await Promise.allSettled([loadSports(), loadTeams(), loadPlayers(), loadTournaments(), loadMatches()])
+      const failures = results.filter((result) => result.status === 'rejected')
+      if (failures.length) throw failures[0].reason
+    })
+  }
+
+  const refreshMatches = async () => {
+    await runTask('Обновление матчей', async () => {
+      await runMatchSearch(0)
+    })
+  }
+
+  const setMatchFilterAndSearch = async (nextFilter) => {
+    setMatchFilter(nextFilter)
+    await runTask('Поиск матчей', async () => {
+      await runMatchSearch(0, nextFilter)
+    })
+  }
+
+  const resetMatchFiltersAndSearch = async () => {
+    const next = emptyMatchFilter
+    setMatchFilter(next)
+    await runTask('Сброс фильтров матчей', async () => {
+      await runMatchSearch(0, next)
+    })
+  }
+
+  // CRUD: Sports
+  const createOrUpdateSport = async (idOrNull, payload) => {
+    await runTask(idOrNull ? 'Обновление вида спорта' : 'Создание вида спорта', async () => {
+      if (idOrNull) {
+        await apiFetch(`/sports/${idOrNull}`, { method: 'PUT', body: JSON.stringify(payload) })
+      } else {
+        await apiFetch('/sports', { method: 'POST', body: JSON.stringify(payload) })
+      }
+      await loadSports()
+    })
+  }
+
+  const deleteSport = async (sport) => {
+    await runTask('Удаление вида спорта', async () => {
+      await apiFetch(`/sports/${sport.id}`, { method: 'DELETE' })
+      await loadSports()
+      await loadTournaments()
+    })
+  }
+
+  // CRUD: Teams
+  const createOrUpdateTeam = async (idOrNull, payload) => {
+    await runTask(idOrNull ? 'Обновление команды' : 'Создание команды', async () => {
+      if (idOrNull) {
+        await apiFetch(`/teams/${idOrNull}`, { method: 'PUT', body: JSON.stringify(payload) })
+      } else {
+        await apiFetch('/teams', { method: 'POST', body: JSON.stringify(payload) })
+      }
+      await loadTeams()
+    })
+  }
+
+  const deleteTeam = async (team) => {
+    await runTask('Удаление команды', async () => {
+      await apiFetch(`/teams/${team.id}`, { method: 'DELETE' })
+      await loadTeams()
+      await loadPlayers()
+      await loadMatches()
+    })
+  }
+
+  // CRUD: Players
+  const createOrUpdatePlayer = async (idOrNull, payload) => {
+    await runTask(idOrNull ? 'Обновление игрока' : 'Создание игрока', async () => {
+      if (idOrNull) {
+        await apiFetch(`/players/${idOrNull}`, { method: 'PUT', body: JSON.stringify(payload) })
+      } else {
+        await apiFetch('/players', { method: 'POST', body: JSON.stringify(payload) })
+      }
+      await loadPlayers()
+    })
+  }
+
+  const deletePlayer = async (player) => {
+    await runTask('Удаление игрока', async () => {
+      await apiFetch(`/players/${player.id}`, { method: 'DELETE' })
+      await loadPlayers()
+    })
+  }
+
+  // CRUD: Tournaments
+  const createOrUpdateTournament = async (idOrNull, payload) => {
+    await runTask(idOrNull ? 'Обновление турнира' : 'Создание турнира', async () => {
+      if (idOrNull) {
+        await apiFetch(`/tournaments/${idOrNull}`, { method: 'PUT', body: JSON.stringify(payload) })
+      } else {
+        await apiFetch('/tournaments', { method: 'POST', body: JSON.stringify(payload) })
+      }
+      await loadTournaments()
+    })
+  }
+
+  const deleteTournament = async (tournament) => {
+    await runTask('Удаление турнира', async () => {
+      await apiFetch(`/tournaments/${tournament.id}`, { method: 'DELETE' })
+      await loadTournaments()
+      await loadMatches()
+    })
+  }
+
+  // CRUD: Matches
+  const createOrUpdateMatch = async (idOrNull, payload) => {
+    await runTask(idOrNull ? 'Обновление матча' : 'Создание матча', async () => {
+      if (idOrNull) {
+        await apiFetch(`/matches/${idOrNull}`, { method: 'PUT', body: JSON.stringify(payload) })
+      } else {
+        await apiFetch('/matches', { method: 'POST', body: JSON.stringify(payload) })
+      }
+      await runMatchSearch(matchPage.page)
+    })
+  }
+
+  const deleteMatch = async (match) => {
+    await runTask('Удаление матча', async () => {
+      await apiFetch(`/matches/${match.id}`, { method: 'DELETE' })
+      await runMatchSearch(matchPage.page)
+    })
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refreshAll()
+    }, 0)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const stats = [
+    { label: 'Виды спорта', value: sports.length },
+    { label: 'Турниры', value: tournaments.length },
+    { label: 'Команды', value: teams.length },
+    { label: 'Игроки', value: players.length },
+    { label: 'Матчи', value: matches.length },
+  ]
+
+  const apiHelpers = {
+    emptySport,
+    emptyTeam,
+    emptyPlayer,
+    emptyTournament,
+    emptyMatch,
+    emptyMatchFilter,
+    toNumber,
+    toDateInput,
+  }
+
+  const matchUtils = {
+    toDateTime,
+    toDateInput,
+  }
+
+  return (
+    <SportControlContext.Provider
+      value={{
+        theme,
+        isDark,
+        toggleTheme,
+
+        status,
+        busy,
+
+        sports,
+        teams,
+        players,
+        tournaments,
+        matches,
+        matchPage,
+
+        matchFilter,
+        setMatchFilter,
+
+        playersByTeam,
+        tournamentsBySport,
+        teamsByTournament,
+        teamById,
+        sportById,
+
+        stats,
+
+        refreshAll,
+        refreshMatches,
+
+        setMatchFilterAndSearch,
+        resetMatchFiltersAndSearch,
+
+        createOrUpdateSport,
+        deleteSport,
+
+        createOrUpdateTeam,
+        deleteTeam,
+
+        createOrUpdatePlayer,
+        deletePlayer,
+
+        createOrUpdateTournament,
+        deleteTournament,
+
+        createOrUpdateMatch,
+        deleteMatch,
+
+        apiHelpers,
+        matchUtils,
+      }}
+    >
+      {children}
+    </SportControlContext.Provider>
+  )
+}
