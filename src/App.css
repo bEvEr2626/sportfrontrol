@@ -622,7 +622,6 @@
   }
 
   .modal {
-    margin-top: 24px;
     max-height: calc(100svh - 32px);
   }
 
