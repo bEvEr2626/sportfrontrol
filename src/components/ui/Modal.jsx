@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 export const Modal = ({
   open,
@@ -37,7 +38,7 @@ export const Modal = ({
     : 'button ghost'
   const primaryClassName = primaryAction?.variant ? `button ${primaryAction.variant}` : 'button primary'
 
-  return (
+  const modalNode = (
     <div
       className="modal-overlay"
       role="dialog"
@@ -94,4 +95,7 @@ export const Modal = ({
       </div>
     </div>
   )
+
+  if (typeof document === 'undefined') return modalNode
+  return createPortal(modalNode, document.body)
 }
