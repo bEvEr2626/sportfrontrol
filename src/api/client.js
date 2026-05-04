@@ -11,7 +11,7 @@ const formatValidationErrors = (validationErrors) => {
   }
   const entries = Object.entries(validationErrors)
   if (!entries.length) return ''
-  return ` (${entries.map(([field, message]) => `${field}: ${message}`).join(', ')})`
+  return ' (' + entries.map(([field, message]) => field + ': ' + message).join(', ') + ')'
 }
 
 export const apiFetch = async (path, options = {}) => {
