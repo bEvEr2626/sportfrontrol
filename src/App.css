@@ -643,21 +643,20 @@
   background: rgba(0, 0, 0, 0.52);
   z-index: 50;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   padding: 24px;
 }
 
 .modal {
   width: min(720px, 100%);
-  margin-top: 96px;
   border-radius: 16px;
   border: 1px solid var(--border);
   background: var(--panel);
   box-shadow: var(--shadow);
   overflow: hidden;
   animation: modalIn 0.18s ease both;
-  max-height: calc(100svh - 96px);
+  max-height: calc(100svh - 48px);
   display: flex;
   flex-direction: column;
 }
