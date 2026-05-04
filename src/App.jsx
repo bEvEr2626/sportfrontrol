@@ -109,7 +109,7 @@ const SportsPage = () => {
       <div className="panel-head">
         <div>
           <h2>Виды спорта</h2>
-          <p className="muted">Связь один-ко-многим между видами спорта и турнирами.</p>
+          <p className="muted">Создавайте виды спорта и привязывайте к ним турниры.</p>
         </div>
         <div className="panel-meta">
           <span className="chip">Всего: {sports.length}</span>
@@ -279,7 +279,7 @@ const TournamentsPage = () => {
       <div className="panel-head">
         <div>
           <h2>Турниры</h2>
-          <p className="muted">Связь многие-ко-многим между турнирами и командами (получается из матчей).</p>
+          <p className="muted">Создавайте турниры, выбирайте вид спорта и добавляйте команды.</p>
         </div>
         <div className="panel-meta">
           <span className="chip">Всего: {tournaments.length}</span>
@@ -454,7 +454,7 @@ const TeamsPage = () => {
       <div className="panel-head">
         <div>
           <h2>Команды</h2>
-          <p className="muted">Связь один-ко-многим между командами и игроками.</p>
+          <p className="muted">Создавайте команды и добавляйте в них игроков.</p>
         </div>
         <div className="panel-meta">
           <span className="chip">Всего: {teams.length}</span>
