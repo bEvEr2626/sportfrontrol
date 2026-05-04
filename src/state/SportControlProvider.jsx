@@ -5,7 +5,7 @@ import { SportControlContext } from './SportControlContext'
 const emptySport = { name: '' }
 const emptyTeam = { name: '' }
 const emptyPlayer = { name: '', teamId: '' }
-const emptyTournament = { name: '', sportId: '' }
+const emptyTournament = { name: '', sportId: '', teamIds: [] }
 const emptyMatch = {
   name: '',
   location: '',
@@ -83,6 +83,22 @@ export const SportControlProvider = ({ children }) => {
 
   const teamsByTournament = useMemo(() => {
     const map = new Map()
+
+    tournaments.forEach((tournament) => {
+      const rawTeamIds = Array.isArray(tournament.teamIds)
+        ? tournament.teamIds
+        : Array.isArray(tournament.teams)
+          ? tournament.teams.map((team) => (typeof team === 'object' ? team.id : team))
+          : []
+
+      if (!rawTeamIds.length) return
+      const existing = map.get(tournament.id) || new Set()
+      rawTeamIds.forEach((teamId) => {
+        if (teamId) existing.add(teamId)
+      })
+      map.set(tournament.id, existing)
+    })
+
     matches.forEach((match) => {
       if (!match.tournamentId) return
       const existing = map.get(match.tournamentId) || new Set()
@@ -90,8 +106,9 @@ export const SportControlProvider = ({ children }) => {
       if (match.awayTeamId) existing.add(match.awayTeamId)
       map.set(match.tournamentId, existing)
     })
+
     return map
-  }, [matches])
+  }, [matches, tournaments])
 
   const runTask = async (label, task) => {
     setBusy(true)
@@ -264,11 +281,26 @@ export const SportControlProvider = ({ children }) => {
   // CRUD: Tournaments
   const createOrUpdateTournament = async (idOrNull, payload) => {
     await runTask(idOrNull ? 'Обновление турнира' : 'Создание турнира', async () => {
+      const { teamIds, ...tournamentPayload } = payload || {}
+      const normalizedTeamIds = Array.isArray(teamIds)
+        ? teamIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+        : []
+
+      let response = null
       if (idOrNull) {
-        await apiFetch(`/tournaments/${idOrNull}`, { method: 'PUT', body: JSON.stringify(payload) })
+        response = await apiFetch(`/tournaments/${idOrNull}`, { method: 'PUT', body: JSON.stringify(tournamentPayload) })
       } else {
-        await apiFetch('/tournaments', { method: 'POST', body: JSON.stringify(payload) })
+        response = await apiFetch('/tournaments', { method: 'POST', body: JSON.stringify(tournamentPayload) })
       }
+
+      const tournamentId = idOrNull ?? response?.id
+      if (tournamentId && normalizedTeamIds.length > 0) {
+        await apiFetch(`/tournaments/${tournamentId}/teams`, {
+          method: 'POST',
+          body: JSON.stringify({ teamIds: normalizedTeamIds }),
+        })
+      }
+
       await loadTournaments()
     })
   }

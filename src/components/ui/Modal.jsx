@@ -32,6 +32,11 @@ export const Modal = ({
 
   if (!open) return null
 
+  const secondaryClassName = secondaryAction?.variant
+    ? `button ${secondaryAction.variant}`
+    : 'button ghost'
+  const primaryClassName = primaryAction?.variant ? `button ${primaryAction.variant}` : 'button primary'
+
   return (
     <div
       className="modal-overlay"
@@ -66,7 +71,7 @@ export const Modal = ({
             {secondaryAction ? (
               <button
                 type="button"
-                className="button ghost"
+                className={secondaryClassName}
                 onClick={secondaryAction.onClick}
                 disabled={busy || secondaryAction.disabled}
               >
@@ -77,7 +82,7 @@ export const Modal = ({
             {primaryAction ? (
               <button
                 type="button"
-                className="button primary"
+                className={primaryClassName}
                 onClick={primaryAction.onClick}
                 disabled={busy || primaryAction.disabled}
               >

@@ -1,5 +1,4 @@
 import { useSportControl } from './state/useSportControl'
-import PropTypes from 'prop-types'
 
 const navItems = [
   { key: 'sports', label: 'Виды спорта' },
@@ -99,7 +98,3 @@ export const AppShell = ({ children, activeRouteKey }) => {
   )
 }
 
-AppShell.propTypes = {
-  children: PropTypes.node,
-  activeRouteKey: PropTypes.string,
-}

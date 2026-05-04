@@ -6,6 +6,56 @@ import { useSportControl } from './state/useSportControl'
 import { AppShell } from './AppShell'
 import { Modal } from './components/ui/Modal'
 
+const useConfirmDialog = (busy) => {
+  const [dialog, setDialog] = useState({
+    open: false,
+    title: '',
+    description: '',
+    confirmLabel: 'Удалить',
+    onConfirm: null,
+  })
+
+  const requestConfirm = ({ title, description, confirmLabel = 'Удалить', onConfirm }) => {
+    setDialog({ open: true, title, description, confirmLabel, onConfirm })
+  }
+
+  const closeDialog = () => setDialog((prev) => ({ ...prev, open: false }))
+
+  const handleConfirm = async () => {
+    const action = dialog.onConfirm
+    closeDialog()
+    if (action) {
+      await action()
+    }
+  }
+
+  const dialogNode = (
+    <Modal
+      open={dialog.open}
+      title={dialog.title}
+      description={dialog.description}
+      busy={busy}
+      primaryAction={{
+        label: dialog.confirmLabel,
+        onClick: handleConfirm,
+        disabled: busy,
+        variant: 'danger',
+      }}
+      secondaryAction={{
+        label: 'Отмена',
+        onClick: closeDialog,
+        disabled: busy,
+        variant: 'ghost',
+      }}
+      onClose={closeDialog}
+    >
+      <p className="muted">Действие нельзя отменить.</p>
+    </Modal>
+  )
+
+  return { requestConfirm, dialogNode }
+}
+
 const SportsPage = () => {
   const {
     sports,
@@ -21,6 +71,16 @@ const SportsPage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalBusy, setModalBusy] = useState(false)
   const isEdit = Boolean(editingId)
+  const { requestConfirm, dialogNode } = useConfirmDialog(busy)
+
+  const confirmDelete = (sport) => {
+    const label = sport?.name ? `вид спорта «${sport.name}»` : 'вид спорта'
+    requestConfirm({
+      title: `Удалить ${label}?`,
+      description: 'Данные будут удалены без возможности восстановления.',
+      onConfirm: () => deleteSport(sport),
+    })
+  }
 
   const openCreate = () => {
     setEditingId(null)
@@ -59,7 +119,7 @@ const SportsPage = () => {
         </div>
       </div>
 
-      <div className="panel-grid">
+      <div className="panel-grid single">
         <div className="panel-card list-card">
           <h3>Список видов спорта</h3>
           <ul className="item-list">
@@ -85,7 +145,7 @@ const SportsPage = () => {
                   <button
                     className="button tiny danger"
                     type="button"
-                    onClick={() => deleteSport(sport)}
+                    onClick={() => confirmDelete(sport)}
                     disabled={busy}
                   >
                     Удалить
@@ -101,13 +161,6 @@ const SportsPage = () => {
           </ul>
         </div>
 
-        <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <h3>Подсказка</h3>
-          <p className="muted">
-            Работайте последовательно: выберите сущность, управляйте ею в списке и редактируйте через модальное
-            окно.
-          </p>
-        </div>
       </div>
 
       <Modal
@@ -146,6 +199,8 @@ const SportsPage = () => {
           </label>
         </form>
       </Modal>
+
+      {dialogNode}
     </section>
   )
 }
@@ -154,6 +209,7 @@ const TournamentsPage = () => {
   const {
     tournaments,
     sports,
+    teams,
     teamsByTournament,
     teamById,
     sportById,
@@ -168,6 +224,16 @@ const TournamentsPage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalBusy, setModalBusy] = useState(false)
   const isEdit = Boolean(editingId)
+  const { requestConfirm, dialogNode } = useConfirmDialog(busy)
+
+  const confirmDelete = (tournament) => {
+    const label = tournament?.name ? `турнир «${tournament.name}»` : 'турнир'
+    requestConfirm({
+      title: `Удалить ${label}?`,
+      description: 'Данные будут удалены без возможности восстановления.',
+      onConfirm: () => deleteTournament(tournament),
+    })
+  }
 
   const openCreate = () => {
     setEditingId(null)
@@ -176,10 +242,16 @@ const TournamentsPage = () => {
   }
 
   const openEdit = (tournament) => {
+    const rawTeamIds = Array.isArray(tournament.teamIds)
+      ? tournament.teamIds
+      : Array.isArray(tournament.teams)
+        ? tournament.teams.map((team) => (typeof team === 'object' ? team.id : team))
+        : []
     setEditingId(tournament.id)
     setTournamentForm({
       name: tournament.name || '',
       sportId: tournament.sportId ? String(tournament.sportId) : '',
+      teamIds: rawTeamIds.filter(Boolean).map((teamId) => String(teamId)),
     })
     setModalOpen(true)
   }
@@ -187,9 +259,13 @@ const TournamentsPage = () => {
   const onSubmit = async () => {
     setModalBusy(true)
     try {
+      const teamIds = Array.isArray(tournamentForm.teamIds)
+        ? tournamentForm.teamIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+        : []
       const payload = {
         name: tournamentForm.name.trim(),
         sportId: tournamentForm.sportId === '' ? null : Number(tournamentForm.sportId),
+        teamIds,
       }
       await createOrUpdateTournament(editingId, payload)
       setModalOpen(false)
@@ -213,7 +289,7 @@ const TournamentsPage = () => {
         </div>
       </div>
 
-      <div className="panel-grid">
+      <div className="panel-grid single">
         <div className="panel-card list-card">
           <h3>Список турниров</h3>
           <ul className="item-list">
@@ -238,7 +314,7 @@ const TournamentsPage = () => {
                   <button
                     className="button tiny danger"
                     type="button"
-                    onClick={() => deleteTournament(tournament)}
+                    onClick={() => confirmDelete(tournament)}
                     disabled={busy}
                   >
                     Удалить
@@ -254,12 +330,6 @@ const TournamentsPage = () => {
           </ul>
         </div>
 
-        <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <h3>Зависимости</h3>
-          <p className="muted">
-            Турнир должен быть привязан к виду спорта. Сначала создайте виды спорта, затем — турниры.
-          </p>
-        </div>
       </div>
 
       <Modal
@@ -312,8 +382,28 @@ const TournamentsPage = () => {
               ))}
             </select>
           </label>
+
+          <label>
+            Команды
+            <select
+              multiple
+              value={tournamentForm.teamIds || []}
+              onChange={(event) => {
+                const selected = Array.from(event.target.selectedOptions, (option) => option.value)
+                setTournamentForm({ ...tournamentForm, teamIds: selected })
+              }}
+            >
+              {teams.map((team) => (
+                <option key={team.id} value={String(team.id)}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </form>
       </Modal>
+
+      {dialogNode}
     </section>
   )
 }
@@ -326,6 +416,16 @@ const TeamsPage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalBusy, setModalBusy] = useState(false)
   const isEdit = Boolean(editingId)
+  const { requestConfirm, dialogNode } = useConfirmDialog(busy)
+
+  const confirmDelete = (team) => {
+    const label = team?.name ? `команду «${team.name}»` : 'команду'
+    requestConfirm({
+      title: `Удалить ${label}?`,
+      description: 'Данные будут удалены без возможности восстановления.',
+      onConfirm: () => deleteTeam(team),
+    })
+  }
 
   const openCreate = () => {
     setEditingId(null)
@@ -364,7 +464,7 @@ const TeamsPage = () => {
         </div>
       </div>
 
-      <div className="panel-grid">
+      <div className="panel-grid single">
         <div className="panel-card list-card">
           <h3>Список команд</h3>
           <ul className="item-list">
@@ -388,7 +488,7 @@ const TeamsPage = () => {
                   <button
                     className="button tiny danger"
                     type="button"
-                    onClick={() => deleteTeam(team)}
+                    onClick={() => confirmDelete(team)}
                     disabled={busy}
                   >
                     Удалить
@@ -404,10 +504,6 @@ const TeamsPage = () => {
           </ul>
         </div>
 
-        <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <h3>Дальше</h3>
-          <p className="muted">Создайте игроков после того, как будут команды.</p>
-        </div>
       </div>
 
       <Modal
@@ -446,6 +542,8 @@ const TeamsPage = () => {
           </label>
         </form>
       </Modal>
+
+      {dialogNode}
     </section>
   )
 }
@@ -458,6 +556,16 @@ const PlayersPage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalBusy, setModalBusy] = useState(false)
   const isEdit = Boolean(editingId)
+  const { requestConfirm, dialogNode } = useConfirmDialog(busy)
+
+  const confirmDelete = (player) => {
+    const label = player?.name ? `игрока «${player.name}»` : 'игрока'
+    requestConfirm({
+      title: `Удалить ${label}?`,
+      description: 'Данные будут удалены без возможности восстановления.',
+      onConfirm: () => deletePlayer(player),
+    })
+  }
 
   const openCreate = () => {
     setEditingId(null)
@@ -503,7 +611,7 @@ const PlayersPage = () => {
         </div>
       </div>
 
-      <div className="panel-grid">
+      <div className="panel-grid single">
         <div className="panel-card list-card">
           <h3>Список игроков</h3>
           <ul className="item-list">
@@ -517,7 +625,7 @@ const PlayersPage = () => {
                   <button className="button tiny" type="button" onClick={() => openEdit(player)} disabled={busy}>
                     Редактировать
                   </button>
-                  <button className="button tiny danger" type="button" onClick={() => deletePlayer(player)} disabled={busy}>
+                  <button className="button tiny danger" type="button" onClick={() => confirmDelete(player)} disabled={busy}>
                     Удалить
                   </button>
                 </div>
@@ -531,10 +639,6 @@ const PlayersPage = () => {
           </ul>
         </div>
 
-        <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <h3>Примечание</h3>
-          <p className="muted">Формы открываются в модальных окнах — списки остаются аккуратными и удобными.</p>
-        </div>
       </div>
 
       <Modal
@@ -589,6 +693,8 @@ const PlayersPage = () => {
           </label>
         </form>
       </Modal>
+
+      {dialogNode}
     </section>
   )
 }
@@ -615,6 +721,16 @@ const MatchesPage = () => {
   const [modalBusy, setModalBusy] = useState(false)
   const [matchForm, setMatchForm] = useState(apiHelpers.emptyMatch)
   const isEdit = Boolean(editingId)
+  const { requestConfirm, dialogNode } = useConfirmDialog(busy)
+
+  const confirmDelete = (match) => {
+    const label = match?.name ? `матч «${match.name}»` : 'матч'
+    requestConfirm({
+      title: `Удалить ${label}?`,
+      description: 'Данные будут удалены без возможности восстановления.',
+      onConfirm: () => deleteMatch(match),
+    })
+  }
 
   const openCreate = () => {
     setEditingId(null)
@@ -670,18 +786,21 @@ const MatchesPage = () => {
         </div>
         <div className="panel-meta">
           <span className="chip">Всего: {matchPage.totalElements}</span>
+          <span className="chip">
+            Страница {matchPage.page + 1} / {matchPage.totalPages || 1}
+          </span>
           <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
             Создать матч
           </button>
         </div>
       </div>
 
-      <div className="panel-grid triple">
+      <div className="panel-grid match-grid">
         <div className="panel-card filter-card">
           <h3>Фильтры</h3>
 
           <form className="form-grid" onSubmit={onApplyFilter}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+            <div className="form-row">
               <label>
                 Название
                 <input value={matchFilter.name} onChange={(e) => setMatchFilter({ ...matchFilter, name: e.target.value })} />
@@ -703,7 +822,7 @@ const MatchesPage = () => {
               </label>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+            <div className="form-row">
               <label>
                 Место
                 <input value={matchFilter.location} onChange={(e) => setMatchFilter({ ...matchFilter, location: e.target.value })} />
@@ -718,8 +837,8 @@ const MatchesPage = () => {
               </label>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
-              <label style={{ gridColumn: '1 / -1' }}>
+            <div className="form-row">
+              <label>
                 Гостевая команда (по названию)
                 <input
                   value={matchFilter.awayTeamName}
@@ -728,7 +847,7 @@ const MatchesPage = () => {
               </label>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+            <div className="form-row">
               <label>
                 Дата с
                 <input
@@ -787,7 +906,7 @@ const MatchesPage = () => {
                   <button
                     className="button tiny danger"
                     type="button"
-                    onClick={() => deleteMatch(match)}
+                    onClick={() => confirmDelete(match)}
                     disabled={busy}
                   >
                     Удалить
@@ -804,15 +923,6 @@ const MatchesPage = () => {
           </ul>
         </div>
 
-        <div className="panel-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <h3>Статус</h3>
-          <p className="muted">Фильтры применяются по кнопке «Применить».</p>
-
-          <div className="pill-row">
-            <span className="pill">Страница {matchPage.page + 1}</span>
-            <span className="pill">Всего страниц {matchPage.totalPages || 1}</span>
-          </div>
-        </div>
       </div>
 
       <Modal
@@ -839,7 +949,7 @@ const MatchesPage = () => {
             onSubmit()
           }}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+          <div className="form-row">
             <label>
               Название
               <input
@@ -868,7 +978,7 @@ const MatchesPage = () => {
             </label>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+          <div className="form-row">
             <label>
               Место
               <input
@@ -889,7 +999,7 @@ const MatchesPage = () => {
             </label>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+          <div className="form-row">
             <label>
               Домашняя команда
               <select
@@ -924,6 +1034,8 @@ const MatchesPage = () => {
           </div>
         </form>
       </Modal>
+
+      {dialogNode}
     </section>
   )
 }
