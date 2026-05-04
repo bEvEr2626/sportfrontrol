@@ -1,6 +1,15 @@
 const getApiBaseUrl = () => {
   const fromEnv = import.meta.env.VITE_API_BASE_URL
-  return fromEnv || 'http://localhost:8080'
+  if (!fromEnv) {
+    throw new Error('VITE_API_BASE_URL is not set')
+  }
+  return fromEnv.replace(/\/+$/, '')
+}
+
+const joinUrl = (baseUrl, path) => {
+  if (!path) return baseUrl
+  if (path.startsWith('/')) return `${baseUrl}${path}`
+  return `${baseUrl}/${path}`
 }
 
 export const API_BASE_URL = getApiBaseUrl()
@@ -20,7 +29,7 @@ export const apiFetch = async (path, options = {}) => {
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(joinUrl(API_BASE_URL, path), {
     ...options,
     headers,
   })

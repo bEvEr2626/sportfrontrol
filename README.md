@@ -10,9 +10,9 @@ React + Vite client for the SportControl API.
 ## Configure API
 The frontend reads the API base URL from .env:
 
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=YOUR_API_BASE_URL
 
-Update it if your backend is running elsewhere.
+Replace `YOUR_API_BASE_URL` with the backend base URL you want to use.
 
 ## Run locally
 npm install
@@ -22,5 +22,5 @@ npm run dev
 npm run build
 
 ## Notes
-- The backend should be running on http://localhost:8080.
+- The backend should be running on the URL set in `VITE_API_BASE_URL`.
 - If the browser blocks requests, enable CORS on the backend or add a Vite proxy.
