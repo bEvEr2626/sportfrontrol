@@ -767,3 +767,68 @@
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.02));
   flex: 0 0 auto;
 }
+
+/* Стилизованный список команд с чекбоксами */
+.team-checkbox-list {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--panel);
+}
+
+.team-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.team-checkbox-item:hover {
+  background: var(--accent-soft);
+}
+
+.team-checkbox-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.team-checkbox-box {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  background: var(--surface);
+  color: var(--surface);
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.team-checkbox-input:checked + .team-checkbox-box {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.team-checkbox-input:checked + .team-checkbox-box::after {
+  content: "✓";
+  line-height: 1;
+}
+
+.team-checkbox-name {
+  font-size: 14px;
+  user-select: none;
+}

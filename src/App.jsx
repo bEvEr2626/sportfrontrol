@@ -430,37 +430,24 @@ const TournamentsPage = () => {
 
           <label>
             Команды
-            <div style={{
-              border: '1px solid var(--border)',
-              borderRadius: '10px',
-              padding: '8px 12px',
-              maxHeight: '180px',
-              overflowY: 'auto',
-              background: 'var(--panel)',
-            }}>
+            <div className="team-checkbox-list">
               {teams.length === 0 ? (
-                <span className="muted">Нет доступных команд</span>
+                <div style={{ padding: '12px', color: 'var(--muted)', fontSize: '13px' }}>
+                  Нет доступных команд
+                </div>
               ) : (
                 teams.map((team) => {
-                  const checked = (tournamentForm.teamIds || []).includes(String(team.id));
+                  const teamIdStr = String(team.id);
+                  const checked = (tournamentForm.teamIds || []).includes(teamIdStr);
+
                   return (
-                    <label
-                      key={team.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '4px 0',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                      }}
-                    >
+                    <label key={team.id} className="team-checkbox-item">
                       <input
                         type="checkbox"
+                        className="team-checkbox-input"
                         checked={checked}
                         onChange={() => {
                           const current = [...(tournamentForm.teamIds || [])];
-                          const teamIdStr = String(team.id);
                           if (checked) {
                             setTournamentForm({
                               ...tournamentForm,
@@ -474,7 +461,8 @@ const TournamentsPage = () => {
                           }
                         }}
                       />
-                      {team.name}
+                      <span className="team-checkbox-box" />
+                      <span className="team-checkbox-name">{team.name}</span>
                     </label>
                   );
                 })
