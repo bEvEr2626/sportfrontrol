@@ -338,6 +338,18 @@ export const SportControlProvider = ({ children }) => {
     })
   }
 
+  const removeTeamsFromTournament = async (tournamentId, teamIds) => {
+    const normalizedTeamIds = normalizeTeamIds(teamIds)
+    if (!tournamentId || !normalizedTeamIds.length) return
+    await runTask('Удаление команды из турнира', async () => {
+      await apiFetch(`/tournaments/${tournamentId}/teams`, {
+        method: 'DELETE',
+        body: JSON.stringify({ teamIds: normalizedTeamIds }),
+      })
+      await loadTournaments()
+    })
+  }
+
   // CRUD: Matches
   const createOrUpdateMatch = async (idOrNull, payload) => {
     await runTask(idOrNull ? 'Обновление матча' : 'Создание матча', async () => {
@@ -434,6 +446,7 @@ export const SportControlProvider = ({ children }) => {
 
         createOrUpdateTournament,
         deleteTournament,
+        removeTeamsFromTournament,
 
         createOrUpdateMatch,
         deleteMatch,

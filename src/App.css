@@ -397,6 +397,48 @@
   font-size: 12px;
 }
 
+.tag-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--tag-bg);
+  color: var(--tag-text);
+  border: 1px solid var(--tag-border);
+  padding: 2px 6px 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.tag-label {
+  color: inherit;
+}
+
+.tag-remove {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.tag-remove:hover {
+  background: var(--accent-soft);
+}
+
+.tag-remove:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+.tag-remove:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .form-grid {
   display: grid;
   gap: 12px;

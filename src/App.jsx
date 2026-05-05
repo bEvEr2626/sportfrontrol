@@ -212,6 +212,7 @@ const TournamentsPage = () => {
     sportById,
     apiHelpers,
     createOrUpdateTournament,
+    removeTeamsFromTournament,
     deleteTournament,
     busy,
   } = useSportControl()
@@ -222,6 +223,18 @@ const TournamentsPage = () => {
   const [modalBusy, setModalBusy] = useState(false)
   const isEdit = Boolean(editingId)
   const { requestConfirm, dialogNode } = useConfirmDialog(busy)
+  const toTeamId = (value) => {
+    const numeric = Number(value)
+    return Number.isFinite(numeric) ? numeric : null
+  }
+  const getAssignedTeamIds = (tournament) => {
+    const rawTeamIds = Array.isArray(tournament?.teamIds)
+      ? tournament.teamIds
+      : Array.isArray(tournament?.teams)
+        ? tournament.teams.map((team) => (typeof team === 'object' ? team.id : team))
+        : []
+    return rawTeamIds.map(toTeamId).filter((value) => value != null)
+  }
 
   const confirmDelete = (tournament) => {
     const label = tournament?.name ? `турнир «${tournament.name}»` : 'турнир'
@@ -232,6 +245,17 @@ const TournamentsPage = () => {
     })
   }
 
+  const confirmDetachTeam = (tournament, teamId) => {
+    const teamName = teamById.get(teamId) || `Команда #${teamId}`
+    const tournamentLabel = tournament?.name ? `турнира «${tournament.name}»` : 'турнира'
+    requestConfirm({
+      title: `Убрать ${teamName} из ${tournamentLabel}?`,
+      description: 'Команда будет отвязана от турнира.',
+      confirmLabel: 'Убрать',
+      onConfirm: () => removeTeamsFromTournament(tournament.id, [teamId]),
+    })
+  }
+
   const openCreate = () => {
     setEditingId(null)
     setTournamentForm(apiHelpers.emptyTournament)
@@ -239,16 +263,12 @@ const TournamentsPage = () => {
   }
 
   const openEdit = (tournament) => {
-    const rawTeamIds = Array.isArray(tournament.teamIds)
-      ? tournament.teamIds
-      : Array.isArray(tournament.teams)
-        ? tournament.teams.map((team) => (typeof team === 'object' ? team.id : team))
-        : []
+    const assignedTeamIds = getAssignedTeamIds(tournament)
     setEditingId(tournament.id)
     setTournamentForm({
       name: tournament.name || '',
       sportId: tournament.sportId ? String(tournament.sportId) : '',
-      teamIds: rawTeamIds.filter(Boolean).map((teamId) => String(teamId)),
+      teamIds: assignedTeamIds.map((teamId) => String(teamId)),
     })
     setModalOpen(true)
   }
@@ -287,35 +307,66 @@ const TournamentsPage = () => {
       <div className="panel-grid single">
         <div className="panel-card list-card">
           <ul className="item-list">
-            {tournaments.map((tournament) => (
-              <li key={tournament.id} className="item">
-                <div className="item-body">
-                  <span className="item-title">{tournament.name}</span>
-                  <div className="item-meta">{sportById.get(tournament.sportId) || 'Неизвестный вид спорта'}</div>
-                  <div className="item-meta">
-                    {[...(teamsByTournament.get(tournament.id) || [])].map((teamId) => (
-                      <span key={teamId} className="tag">
-                        {teamById.get(teamId) || `Команда #${teamId}`}
-                      </span>
-                    ))}
-                    {!teamsByTournament.get(tournament.id)?.size ? <span className="muted">Пока нет команд</span> : null}
+            {tournaments.map((tournament) => {
+              const assignedTeamIds = getAssignedTeamIds(tournament)
+              const assignedSet = new Set(assignedTeamIds)
+              const rawTeamIds = [...(teamsByTournament.get(tournament.id) || [])]
+              const allTeamIds = [
+                ...new Set(rawTeamIds.map(toTeamId).filter((value) => value != null)),
+              ]
+              const tournamentLabel = tournament?.name ? `турнира ${tournament.name}` : 'турнира'
+
+              return (
+                <li key={tournament.id} className="item">
+                  <div className="item-body">
+                    <span className="item-title">{tournament.name}</span>
+                    <div className="item-meta">{sportById.get(tournament.sportId) || 'Неизвестный вид спорта'}</div>
+                    <div className="item-meta">
+                      {allTeamIds.map((teamId) => {
+                        const teamName = teamById.get(teamId) || `Команда #${teamId}`
+                        if (!assignedSet.has(teamId)) {
+                          return (
+                            <span key={teamId} className="tag">
+                              {teamName}
+                            </span>
+                          )
+                        }
+
+                        return (
+                          <span key={teamId} className="tag-group">
+                            <span className="tag-label">{teamName}</span>
+                            <button
+                              className="tag-remove"
+                              type="button"
+                              onClick={() => confirmDetachTeam(tournament, teamId)}
+                              disabled={busy}
+                              title="Убрать из турнира"
+                              aria-label={`Убрать команду ${teamName} из ${tournamentLabel}`}
+                            >
+                              x
+                            </button>
+                          </span>
+                        )
+                      })}
+                      {!allTeamIds.length ? <span className="muted">Пока нет команд</span> : null}
+                    </div>
                   </div>
-                </div>
-                <div className="item-actions">
-                  <button className="button tiny" type="button" onClick={() => openEdit(tournament)} disabled={busy}>
-                    Редактировать
-                  </button>
-                  <button
-                    className="button tiny danger"
-                    type="button"
-                    onClick={() => confirmDelete(tournament)}
-                    disabled={busy}
-                  >
-                    Удалить
-                  </button>
-                </div>
-              </li>
-            ))}
+                  <div className="item-actions">
+                    <button className="button tiny" type="button" onClick={() => openEdit(tournament)} disabled={busy}>
+                      Редактировать
+                    </button>
+                    <button
+                      className="button tiny danger"
+                      type="button"
+                      onClick={() => confirmDelete(tournament)}
+                      disabled={busy}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
             {!tournaments.length ? (
               <li className="item" style={{ gridTemplateColumns: '1fr' }}>
                 <span className="muted">Пока нет турниров.</span>
