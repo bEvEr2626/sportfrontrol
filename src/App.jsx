@@ -430,20 +430,56 @@ const TournamentsPage = () => {
 
           <label>
             Команды
-            <select
-              multiple
-              value={tournamentForm.teamIds || []}
-              onChange={(event) => {
-                const selected = Array.from(event.target.selectedOptions, (option) => option.value)
-                setTournamentForm({ ...tournamentForm, teamIds: selected })
-              }}
-            >
-              {teams.map((team) => (
-                <option key={team.id} value={String(team.id)}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
+            <div style={{
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              padding: '8px 12px',
+              maxHeight: '180px',
+              overflowY: 'auto',
+              background: 'var(--panel)',
+            }}>
+              {teams.length === 0 ? (
+                <span className="muted">Нет доступных команд</span>
+              ) : (
+                teams.map((team) => {
+                  const checked = (tournamentForm.teamIds || []).includes(String(team.id));
+                  return (
+                    <label
+                      key={team.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '4px 0',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const current = [...(tournamentForm.teamIds || [])];
+                          const teamIdStr = String(team.id);
+                          if (checked) {
+                            setTournamentForm({
+                              ...tournamentForm,
+                              teamIds: current.filter((id) => id !== teamIdStr),
+                            });
+                          } else {
+                            setTournamentForm({
+                              ...tournamentForm,
+                              teamIds: [...current, teamIdStr],
+                            });
+                          }
+                        }}
+                      />
+                      {team.name}
+                    </label>
+                  );
+                })
+              )}
+            </div>
           </label>
         </form>
       </Modal>
