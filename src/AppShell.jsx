@@ -1,76 +1,32 @@
 import { useSportControl } from './state/useSportControl'
 
 const navItems = [
+  { key: 'matches', label: 'Матчи' },
   { key: 'sports', label: 'Виды спорта' },
   { key: 'tournaments', label: 'Турниры' },
   { key: 'teams', label: 'Команды' },
   { key: 'players', label: 'Игроки' },
-  { key: 'matches', label: 'Матчи' },
 ]
 
 export const AppShell = ({ children, activeRouteKey }) => {
-  const {
-    status,
-    busy,
-    isDark,
-    toggleTheme,
-    refreshAll,
-    refreshMatches,
-    stats,
-    matchPage,
-  } = useSportControl()
+  const { isDark, toggleTheme } = useSportControl()
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <p className="eyebrow">SportControl</p>
-          <h1>Панель управления</h1>
-          <p className="lede">Управляйте видами спорта, турнирами, командами, игроками и матчами в одном месте.</p>
-
-          <div className="action-row">
-            <button className="button primary" onClick={refreshAll} disabled={busy}>
-              Обновить данные
-            </button>
-            <button className="button ghost" onClick={refreshMatches} disabled={busy}>
-              Обновить матчи
-            </button>
-            <button
-              className="button theme-toggle"
-              type="button"
-              onClick={toggleTheme}
-              aria-pressed={isDark}
-            >
-              {isDark ? 'Светлая тема' : 'Тёмная тема'}
-            </button>
-          </div>
+          <h1>SportControl</h1>
         </div>
 
-        <div className="summary-card">
-          <div className="summary-header">
-            <span>Сводка</span>
-            <span className="chip">{new Date().toLocaleDateString('ru-RU')}</span>
-          </div>
-
-          <div className="summary-grid">
-            {stats.map((stat) => (
-              <div key={stat.label} className="summary-stat">
-                <span className="summary-label">{stat.label}</span>
-                <span className="summary-value">{stat.value}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="summary-footer">
-            <span className="muted">Страница матчей</span>
-            <span className="chip">
-              {matchPage.page + 1} / {matchPage.totalPages || 1}
-            </span>
-          </div>
-        </div>
+        <button
+          className="button theme-toggle theme-toggle-float"
+          type="button"
+          onClick={toggleTheme}
+          aria-pressed={isDark}
+        >
+          {isDark ? 'Светлая тема' : 'Тёмная тема'}
+        </button>
       </header>
-
-      {status.message ? <div className={`status ${status.type}`}>{status.message}</div> : null}
 
       <nav className="topnav" aria-label="Навигация">
         {navItems.map((item) => (

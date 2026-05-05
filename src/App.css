@@ -1,14 +1,15 @@
 .app-shell {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 28px 16px 80px;
+  padding: 44px 16px 80px;
 }
 
 .topbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-  gap: 24px;
-  align-items: start;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .brand {
@@ -18,22 +19,18 @@
 }
 
 .eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  font-size: 12px;
+  font-family: var(--font-serif);
+  font-size: clamp(1.5rem, 1.2vw + 1.1rem, 2.2rem);
+  letter-spacing: 0.06em;
+  text-transform: none;
+  font-weight: 700;
   color: var(--accent-strong);
   margin: 0;
 }
 
-.lede {
-  margin: 8px 0 12px;
-  max-width: 55ch;
-}
 
-.action-row {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+.theme-toggle-float {
+  margin-left: auto;
 }
 
 .summary-card {
@@ -537,9 +534,6 @@
 }
 
 @media (max-width: 1100px) {
-  .topbar {
-    grid-template-columns: 1fr;
-  }
 
   .layout {
     grid-template-columns: 1fr;
@@ -572,16 +566,12 @@
 
 @media (max-width: 720px) {
   .app-shell {
-    padding: 20px 12px 60px;
+    padding: 28px 12px 60px;
   }
 
-  .action-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .action-row .button {
+  .theme-toggle-float {
     width: 100%;
+    margin-left: 0;
   }
 
   .panel {

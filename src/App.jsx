@@ -109,10 +109,8 @@ const SportsPage = () => {
       <div className="panel-head">
         <div>
           <h2>Виды спорта</h2>
-          <p className="muted">Создавайте виды спорта и привязывайте к ним турниры.</p>
         </div>
         <div className="panel-meta">
-          <span className="chip">Всего: {sports.length}</span>
           <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
             Создать вид спорта
           </button>
@@ -279,10 +277,8 @@ const TournamentsPage = () => {
       <div className="panel-head">
         <div>
           <h2>Турниры</h2>
-          <p className="muted">Создавайте турниры, выбирайте вид спорта и добавляйте команды.</p>
         </div>
         <div className="panel-meta">
-          <span className="chip">Всего: {tournaments.length}</span>
           <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
             Создать турнир
           </button>
@@ -454,10 +450,8 @@ const TeamsPage = () => {
       <div className="panel-head">
         <div>
           <h2>Команды</h2>
-          <p className="muted">Создавайте команды и добавляйте в них игроков.</p>
         </div>
         <div className="panel-meta">
-          <span className="chip">Всего: {teams.length}</span>
           <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
             Создать команду
           </button>
@@ -600,11 +594,8 @@ const PlayersPage = () => {
       <div className="panel-head">
         <div>
           <h2>Игроки</h2>
-          <p className="muted">Назначайте игроков командам.</p>
         </div>
         <div className="panel-meta">
-          <span className="chip">Всего: {players.length}</span>
-          <span className="chip">Команд: {teams.length}</span>
           <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
             Создать игрока
           </button>
@@ -704,7 +695,6 @@ const MatchesPage = () => {
     matches,
     tournaments,
     teams,
-    matchPage,
     matchFilter,
     setMatchFilter,
     busy,
@@ -782,13 +772,8 @@ const MatchesPage = () => {
       <div className="panel-head">
         <div>
           <h2>Матчи</h2>
-          <p className="muted">Фильтр по названию, месту, командам, датам и турниру.</p>
         </div>
         <div className="panel-meta">
-          <span className="chip">Всего: {matchPage.totalElements}</span>
-          <span className="chip">
-            Страница {matchPage.page + 1} / {matchPage.totalPages || 1}
-          </span>
           <button className="button primary" type="button" onClick={openCreate} disabled={busy}>
             Создать матч
           </button>
@@ -1043,7 +1028,7 @@ const MatchesPage = () => {
 const AppRoutes = () => {
   const routesConfig = useMemo(
     () => ({
-      default: 'sports',
+      default: 'matches',
       byKey: {
         sports: <SportsPage />,
         tournaments: <TournamentsPage />,

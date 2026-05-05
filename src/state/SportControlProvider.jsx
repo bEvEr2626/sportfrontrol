@@ -341,11 +341,11 @@ export const SportControlProvider = ({ children }) => {
   }, [])
 
   const stats = [
-    { label: 'Виды спорта', value: sports.length },
+    { label: 'Матчи', value: matches.length },
     { label: 'Турниры', value: tournaments.length },
     { label: 'Команды', value: teams.length },
     { label: 'Игроки', value: players.length },
-    { label: 'Матчи', value: matches.length },
+    { label: 'Виды спорта', value: sports.length },
   ]
 
   const apiHelpers = {
