@@ -2,10 +2,10 @@ import { useSportControl } from './state/useSportControl'
 
 const navItems = [
   { key: 'matches', label: 'Матчи' },
-  { key: 'sports', label: 'Виды спорта' },
   { key: 'tournaments', label: 'Турниры' },
   { key: 'teams', label: 'Команды' },
   { key: 'players', label: 'Игроки' },
+  { key: 'sports', label: 'Виды спорта' },
 ]
 
 export const AppShell = ({ children, activeRouteKey }) => {

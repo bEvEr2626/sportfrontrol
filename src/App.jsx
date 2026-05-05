@@ -119,7 +119,6 @@ const SportsPage = () => {
 
       <div className="panel-grid single">
         <div className="panel-card list-card">
-          <h3>Список видов спорта</h3>
           <ul className="item-list">
             {sports.map((sport) => (
               <li key={sport.id} className="item">
@@ -287,7 +286,6 @@ const TournamentsPage = () => {
 
       <div className="panel-grid single">
         <div className="panel-card list-card">
-          <h3>Список турниров</h3>
           <ul className="item-list">
             {tournaments.map((tournament) => (
               <li key={tournament.id} className="item">
@@ -460,7 +458,6 @@ const TeamsPage = () => {
 
       <div className="panel-grid single">
         <div className="panel-card list-card">
-          <h3>Список команд</h3>
           <ul className="item-list">
             {teams.map((team) => (
               <li key={team.id} className="item">
@@ -604,7 +601,6 @@ const PlayersPage = () => {
 
       <div className="panel-grid single">
         <div className="panel-card list-card">
-          <h3>Список игроков</h3>
           <ul className="item-list">
             {players.map((player) => (
               <li key={player.id} className="item">
@@ -864,7 +860,6 @@ const MatchesPage = () => {
         </div>
 
         <div className="panel-card list-card">
-          <h3>Список матчей</h3>
           <ul className="item-list">
             {matches.map((match) => (
               <li key={match.id} className="item">

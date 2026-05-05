@@ -27,6 +27,18 @@ const emptyMatchFilter = {
 const toNumber = (value) => (value === '' || value == null ? null : Number(value))
 const toDateTime = (value) => (value ? (value.length === 16 ? `${value}:00` : value) : null)
 const toDateInput = (value) => (value ? value.slice(0, 16) : '')
+const normalizeTeamIds = (teamIds) => {
+  if (!Array.isArray(teamIds)) return []
+  return teamIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+}
+const getTournamentTeamIds = (tournament) => {
+  const rawTeamIds = Array.isArray(tournament?.teamIds)
+    ? tournament.teamIds
+    : Array.isArray(tournament?.teams)
+      ? tournament.teams.map((team) => (typeof team === 'object' ? team.id : team))
+      : []
+  return normalizeTeamIds(rawTeamIds)
+}
 
 const getInitialTheme = () => {
   if (typeof window === 'undefined') return 'light'
@@ -282,9 +294,8 @@ export const SportControlProvider = ({ children }) => {
   const createOrUpdateTournament = async (idOrNull, payload) => {
     await runTask(idOrNull ? 'Обновление турнира' : 'Создание турнира', async () => {
       const { teamIds, ...tournamentPayload } = payload || {}
-      const normalizedTeamIds = Array.isArray(teamIds)
-        ? teamIds.map((value) => Number(value)).filter((value) => Number.isFinite(value))
-        : []
+      const normalizedTeamIds = normalizeTeamIds(teamIds)
+      const existingTeamIds = idOrNull ? getTournamentTeamIds(tournaments.find((t) => t.id === idOrNull)) : []
 
       let response = null
       if (idOrNull) {
@@ -294,11 +305,25 @@ export const SportControlProvider = ({ children }) => {
       }
 
       const tournamentId = idOrNull ?? response?.id
-      if (tournamentId && normalizedTeamIds.length > 0) {
-        await apiFetch(`/tournaments/${tournamentId}/teams`, {
-          method: 'POST',
-          body: JSON.stringify({ teamIds: normalizedTeamIds }),
-        })
+      if (tournamentId) {
+        const existingSet = new Set(existingTeamIds)
+        const nextSet = new Set(normalizedTeamIds)
+        const teamIdsToAdd = normalizedTeamIds.filter((teamId) => !existingSet.has(teamId))
+        const teamIdsToRemove = existingTeamIds.filter((teamId) => !nextSet.has(teamId))
+
+        if (teamIdsToAdd.length) {
+          await apiFetch(`/tournaments/${tournamentId}/teams`, {
+            method: 'POST',
+            body: JSON.stringify({ teamIds: teamIdsToAdd }),
+          })
+        }
+
+        if (teamIdsToRemove.length) {
+          await apiFetch(`/tournaments/${tournamentId}/teams`, {
+            method: 'DELETE',
+            body: JSON.stringify({ teamIds: teamIdsToRemove }),
+          })
+        }
       }
 
       await loadTournaments()
