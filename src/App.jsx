@@ -454,7 +454,15 @@ const TournamentsPage = () => {
 }
 
 const TeamsPage = () => {
-  const { teams, playersByTeam, apiHelpers, createOrUpdateTeam, deleteTeam, busy } = useSportControl()
+  const {
+    teams,
+    playersByTeam,
+    apiHelpers,
+    createOrUpdateTeam,
+    deleteTeam,
+    removePlayerFromTeam,
+    busy,
+  } = useSportControl()
 
   const [teamForm, setTeamForm] = useState(apiHelpers.emptyTeam)
   const [editingId, setEditingId] = useState(null)
@@ -469,6 +477,16 @@ const TeamsPage = () => {
       title: `Удалить ${label}?`,
       description: 'Данные будут удалены без возможности восстановления.',
       onConfirm: () => deleteTeam(team),
+    })
+  }
+
+  const confirmDetachPlayer = (player) => {
+    const label = player?.name ? `игрока «${player.name}»` : 'игрока'
+    requestConfirm({
+      title: `Убрать ${label} из команды?`,
+      description: 'Игрок останется в системе, но будет откреплён от текущей команды.',
+      confirmLabel: 'Убрать',
+      onConfirm: () => removePlayerFromTeam(player.id),
     })
   }
 
@@ -516,11 +534,23 @@ const TeamsPage = () => {
                   <span className="item-title">{team.name}</span>
                   <div className="item-meta">
                     {(playersByTeam.get(team.id) || []).map((player) => (
-                      <span key={player.id} className="tag">
-                        {player.name}
+                      <span key={player.id} className="tag-group">
+                        <span className="tag-label">{player.name}</span>
+                        <button
+                          className="tag-remove"
+                          type="button"
+                          onClick={() => confirmDetachPlayer(player)}
+                          disabled={busy}
+                          title="Убрать из команды"
+                          aria-label={`Убрать игрока ${player.name} из команды ${team.name}`}
+                        >
+                          x
+                        </button>
                       </span>
                     ))}
-                    {!playersByTeam.get(team.id)?.length ? <span className="muted">Пока нет игроков</span> : null}
+                    {!playersByTeam.get(team.id)?.length ? (
+                      <span className="muted">Пока нет игроков</span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="item-actions">
@@ -545,7 +575,6 @@ const TeamsPage = () => {
             ) : null}
           </ul>
         </div>
-
       </div>
 
       <Modal
@@ -589,7 +618,6 @@ const TeamsPage = () => {
     </section>
   )
 }
-
 const PlayersPage = () => {
   const { players, teams, teamById, apiHelpers, createOrUpdatePlayer, deletePlayer, busy } = useSportControl()
 

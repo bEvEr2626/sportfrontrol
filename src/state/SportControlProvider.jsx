@@ -290,6 +290,19 @@ export const SportControlProvider = ({ children }) => {
     })
   }
 
+
+  const removePlayerFromTeam = async (playerId) => {
+  const player = players.find((p) => p.id === playerId)
+  if (!player) return
+
+    await runTask('Удаление игрока из команды', async () => {
+      await apiFetch(`/players/${playerId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: player.name, teamId: null }),
+      })
+      await loadPlayers()
+    })
+  }
   // CRUD: Tournaments
   const createOrUpdateTournament = async (idOrNull, payload) => {
     await runTask(idOrNull ? 'Обновление турнира' : 'Создание турнира', async () => {
@@ -440,6 +453,7 @@ export const SportControlProvider = ({ children }) => {
 
         createOrUpdateTeam,
         deleteTeam,
+        removePlayerFromTeam,
 
         createOrUpdatePlayer,
         deletePlayer,
