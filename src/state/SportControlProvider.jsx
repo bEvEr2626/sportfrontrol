@@ -1,3 +1,4 @@
+// SportControlProvider.jsx (полный файл)
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../api/client'
 import { SportControlContext } from './SportControlContext'
@@ -18,7 +19,9 @@ const emptyMatchFilter = {
   name: '',
   location: '',
   tournamentId: '',
-  homeTeamName: '',
+  homeTeamId: '',      // ID выбранной команды (для UI)
+  homeTeamName: '',    // название (для API)
+  awayTeamId: '',
   awayTeamName: '',
   dateFrom: '',
   dateTo: '',
@@ -223,7 +226,7 @@ export const SportControlProvider = ({ children }) => {
   }
 
   const resetMatchFiltersAndSearch = async () => {
-    const next = emptyMatchFilter
+    const next = { ...emptyMatchFilter }
     setMatchFilter(next)
     await runTask('Сброс фильтров матчей', async () => {
       await runMatchSearch(0, next)
@@ -290,10 +293,9 @@ export const SportControlProvider = ({ children }) => {
     })
   }
 
-
   const removePlayerFromTeam = async (playerId) => {
-  const player = players.find((p) => p.id === playerId)
-  if (!player) return
+    const player = players.find((p) => p.id === playerId)
+    if (!player) return
 
     await runTask('Удаление игрока из команды', async () => {
       await apiFetch(`/players/${playerId}`, {
@@ -303,6 +305,24 @@ export const SportControlProvider = ({ children }) => {
       await loadPlayers()
     })
   }
+
+  // *** Новый метод: добавление нескольких игроков в команду ***
+  const addPlayersToTeam = async (teamId, playerIds) => {
+    if (!teamId || !playerIds || !playerIds.length) return
+    await runTask('Добавление игроков в команду', async () => {
+      const updatePromises = playerIds.map((playerId) => {
+        const player = players.find((p) => p.id === playerId)
+        if (!player) return Promise.resolve()
+        return apiFetch(`/players/${playerId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ name: player.name, teamId }),
+        })
+      })
+      await Promise.all(updatePromises)
+      await loadPlayers()
+    })
+  }
+
   // CRUD: Tournaments
   const createOrUpdateTournament = async (idOrNull, payload) => {
     await runTask(idOrNull ? 'Обновление турнира' : 'Создание турнира', async () => {
@@ -454,6 +474,7 @@ export const SportControlProvider = ({ children }) => {
         createOrUpdateTeam,
         deleteTeam,
         removePlayerFromTeam,
+        addPlayersToTeam,   // новый
 
         createOrUpdatePlayer,
         deletePlayer,

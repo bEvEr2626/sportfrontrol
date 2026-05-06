@@ -1,3 +1,4 @@
+// App.jsx (полный файл)
 import { useMemo, useState } from 'react'
 import './App.css'
 import { useHashRoute } from './router/useHashRoute'
@@ -480,11 +481,13 @@ const TournamentsPage = () => {
 const TeamsPage = () => {
   const {
     teams,
+    players,
     playersByTeam,
     apiHelpers,
     createOrUpdateTeam,
     deleteTeam,
     removePlayerFromTeam,
+    addPlayersToTeam,   // новое из контекста
     busy,
   } = useSportControl()
 
@@ -493,6 +496,12 @@ const TeamsPage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalBusy, setModalBusy] = useState(false)
   const isEdit = Boolean(editingId)
+
+  // состояние для модалки добавления игроков в команду
+  const [playerModalOpen, setPlayerModalOpen] = useState(false)
+  const [currentTeamForPlayers, setCurrentTeamForPlayers] = useState(null)
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState([])
+
   const { requestConfirm, dialogNode } = useConfirmDialog(busy)
 
   const confirmDelete = (team) => {
@@ -536,6 +545,27 @@ const TeamsPage = () => {
     }
   }
 
+  // --- Работа с добавлением игроков ---
+  const openAddPlayers = (team) => {
+    setCurrentTeamForPlayers(team)
+    setSelectedPlayerIds([]) // сброс выбора
+    setPlayerModalOpen(true)
+  }
+
+  const handleAddPlayers = async () => {
+    if (!currentTeamForPlayers || !selectedPlayerIds.length) return
+    await addPlayersToTeam(currentTeamForPlayers.id, selectedPlayerIds)
+    setPlayerModalOpen(false)
+    setCurrentTeamForPlayers(null)
+  }
+
+  // Игроки, которые ещё НЕ в этой команде
+  const availablePlayersForTeam = (team) => {
+    if (!team) return []
+    const teamPlayerIds = new Set((playersByTeam.get(team.id) || []).map((p) => p.id))
+    return players.filter((p) => !teamPlayerIds.has(p.id))
+  }
+
   return (
     <section className="panel">
       <div className="panel-head">
@@ -552,46 +582,57 @@ const TeamsPage = () => {
       <div className="panel-grid single">
         <div className="panel-card list-card">
           <ul className="item-list">
-            {teams.map((team) => (
-              <li key={team.id} className="item">
-                <div className="item-body">
-                  <span className="item-title">{team.name}</span>
-                  <div className="item-meta">
-                    {(playersByTeam.get(team.id) || []).map((player) => (
-                      <span key={player.id} className="tag-group">
-                        <span className="tag-label">{player.name}</span>
-                        <button
-                          className="tag-remove"
-                          type="button"
-                          onClick={() => confirmDetachPlayer(player)}
-                          disabled={busy}
-                          title="Убрать из команды"
-                          aria-label={`Убрать игрока ${player.name} из команды ${team.name}`}
-                        >
-                          x
-                        </button>
-                      </span>
-                    ))}
-                    {!playersByTeam.get(team.id)?.length ? (
-                      <span className="muted">Пока нет игроков</span>
-                    ) : null}
+            {teams.map((team) => {
+              const teamPlayers = playersByTeam.get(team.id) || []
+              return (
+                <li key={team.id} className="item">
+                  <div className="item-body">
+                    <span className="item-title">{team.name}</span>
+                    <div className="item-meta">
+                      {teamPlayers.map((player) => (
+                        <span key={player.id} className="tag-group">
+                          <span className="tag-label">{player.name}</span>
+                          <button
+                            className="tag-remove"
+                            type="button"
+                            onClick={() => confirmDetachPlayer(player)}
+                            disabled={busy}
+                            title="Убрать из команды"
+                            aria-label={`Убрать игрока ${player.name} из команды ${team.name}`}
+                          >
+                            x
+                          </button>
+                        </span>
+                      ))}
+                      {!teamPlayers.length ? (
+                        <span className="muted">Пока нет игроков</span>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                <div className="item-actions">
-                  <button className="button tiny" type="button" onClick={() => openEdit(team)} disabled={busy}>
-                    Редактировать
-                  </button>
-                  <button
-                    className="button tiny danger"
-                    type="button"
-                    onClick={() => confirmDelete(team)}
-                    disabled={busy}
-                  >
-                    Удалить
-                  </button>
-                </div>
-              </li>
-            ))}
+                  <div className="item-actions">
+                    <button className="button tiny" type="button" onClick={() => openEdit(team)} disabled={busy}>
+                      Редактировать
+                    </button>
+                    <button
+                      className="button tiny"
+                      type="button"
+                      onClick={() => openAddPlayers(team)}
+                      disabled={busy}
+                    >
+                      Добавить игроков
+                    </button>
+                    <button
+                      className="button tiny danger"
+                      type="button"
+                      onClick={() => confirmDelete(team)}
+                      disabled={busy}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
             {!teams.length ? (
               <li className="item" style={{ gridTemplateColumns: '1fr' }}>
                 <span className="muted">Пока нет команд.</span>
@@ -601,6 +642,59 @@ const TeamsPage = () => {
         </div>
       </div>
 
+      {/* Модалка добавления игроков */}
+      <Modal
+        open={playerModalOpen}
+        title={`Добавить игроков в команду «${currentTeamForPlayers?.name || ''}»`}
+        description="Выберите игроков, которых нужно включить в команду."
+        busy={busy}
+        primaryAction={{
+          label: 'Добавить',
+          disabled: busy || selectedPlayerIds.length === 0,
+          onClick: handleAddPlayers,
+        }}
+        secondaryAction={{
+          label: 'Отмена',
+          disabled: busy,
+          onClick: () => setPlayerModalOpen(false),
+        }}
+        onClose={() => setPlayerModalOpen(false)}
+      >
+        {currentTeamForPlayers && (
+          <div className="team-checkbox-list">
+            {availablePlayersForTeam(currentTeamForPlayers).length === 0 ? (
+              <div style={{ padding: '12px', color: 'var(--muted)', fontSize: '13px' }}>
+                Нет доступных игроков для добавления
+              </div>
+            ) : (
+              availablePlayersForTeam(currentTeamForPlayers).map((player) => {
+                const playerIdStr = String(player.id)
+                const checked = selectedPlayerIds.includes(playerIdStr)
+                return (
+                  <label key={player.id} className="team-checkbox-item">
+                    <input
+                      type="checkbox"
+                      className="team-checkbox-input"
+                      checked={checked}
+                      onChange={() => {
+                        if (checked) {
+                          setSelectedPlayerIds((prev) => prev.filter((id) => id !== playerIdStr))
+                        } else {
+                          setSelectedPlayerIds((prev) => [...prev, playerIdStr])
+                        }
+                      }}
+                    />
+                    <span className="team-checkbox-box" />
+                    <span className="team-checkbox-name">{player.name}</span>
+                  </label>
+                )
+              })
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Модалка создания/редактирования команды (без изменений) */}
       <Modal
         open={modalOpen}
         title={isEdit ? 'Редактировать команду' : 'Создать команду'}
@@ -642,6 +736,7 @@ const TeamsPage = () => {
     </section>
   )
 }
+
 const PlayersPage = () => {
   const { players, teams, teamById, apiHelpers, createOrUpdatePlayer, deletePlayer, busy } = useSportControl()
 
@@ -793,7 +888,7 @@ const MatchesPage = () => {
   const {
     matches,
     tournaments,
-    teams,
+    teams,               // список всех команд для выпадающих списков
     matchFilter,
     setMatchFilter,
     busy,
@@ -912,22 +1007,54 @@ const MatchesPage = () => {
                 <input value={matchFilter.location} onChange={(e) => setMatchFilter({ ...matchFilter, location: e.target.value })} />
               </label>
 
+              {/* Бывший текстовый ввод – теперь выпадающий список */}
               <label>
-                Домашняя команда (по названию)
-                <input
-                  value={matchFilter.homeTeamName}
-                  onChange={(e) => setMatchFilter({ ...matchFilter, homeTeamName: e.target.value })}
-                />
+                Домашняя команда
+                <select
+                  value={matchFilter.homeTeamId}
+                  onChange={(e) => {
+                    const teamId = e.target.value;
+                    const team = teams.find((t) => String(t.id) === teamId);
+                    setMatchFilter({
+                      ...matchFilter,
+                      homeTeamId: teamId,
+                      homeTeamName: team ? team.name : '',
+                    });
+                  }}
+                >
+                  <option value="">Все</option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={String(team.id)}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
 
             <div className="form-row">
+              {/* Бывший текстовый ввод – теперь выпадающий список */}
               <label>
-                Гостевая команда (по названию)
-                <input
-                  value={matchFilter.awayTeamName}
-                  onChange={(e) => setMatchFilter({ ...matchFilter, awayTeamName: e.target.value })}
-                />
+                Гостевая команда
+                <select
+                  value={matchFilter.awayTeamId}
+                  onChange={(e) => {
+                    const teamId = e.target.value;
+                    const team = teams.find((t) => String(t.id) === teamId);
+                    setMatchFilter({
+                      ...matchFilter,
+                      awayTeamId: teamId,
+                      awayTeamName: team ? team.name : '',
+                    });
+                  }}
+                >
+                  <option value="">Все</option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={String(team.id)}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
 
