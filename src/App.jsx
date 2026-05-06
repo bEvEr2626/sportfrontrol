@@ -1,4 +1,3 @@
-// App.jsx (полный файл)
 import { useMemo, useState } from 'react'
 import './App.css'
 import { useHashRoute } from './router/useHashRoute'
@@ -487,7 +486,6 @@ const TeamsPage = () => {
     createOrUpdateTeam,
     deleteTeam,
     removePlayerFromTeam,
-    addPlayersToTeam,   // новое из контекста
     busy,
   } = useSportControl()
 
@@ -496,12 +494,6 @@ const TeamsPage = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalBusy, setModalBusy] = useState(false)
   const isEdit = Boolean(editingId)
-
-  // состояние для модалки добавления игроков в команду
-  const [playerModalOpen, setPlayerModalOpen] = useState(false)
-  const [currentTeamForPlayers, setCurrentTeamForPlayers] = useState(null)
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState([])
-
   const { requestConfirm, dialogNode } = useConfirmDialog(busy)
 
   const confirmDelete = (team) => {
@@ -525,45 +517,31 @@ const TeamsPage = () => {
 
   const openCreate = () => {
     setEditingId(null)
-    setTeamForm(apiHelpers.emptyTeam)
+    setTeamForm({ name: '', playerIds: [] })
     setModalOpen(true)
   }
 
   const openEdit = (team) => {
+    const currentPlayerIds = (playersByTeam.get(team.id) || []).map((p) => String(p.id))
     setEditingId(team.id)
-    setTeamForm({ name: team.name || '' })
+    setTeamForm({
+      name: team.name || '',
+      playerIds: currentPlayerIds,
+    })
     setModalOpen(true)
   }
 
   const onSubmit = async () => {
     setModalBusy(true)
     try {
-      await createOrUpdateTeam(editingId, { name: teamForm.name.trim() })
+      await createOrUpdateTeam(editingId, {
+        name: teamForm.name.trim(),
+        playerIds: teamForm.playerIds || [],
+      })
       setModalOpen(false)
     } finally {
       setModalBusy(false)
     }
-  }
-
-  // --- Работа с добавлением игроков ---
-  const openAddPlayers = (team) => {
-    setCurrentTeamForPlayers(team)
-    setSelectedPlayerIds([]) // сброс выбора
-    setPlayerModalOpen(true)
-  }
-
-  const handleAddPlayers = async () => {
-    if (!currentTeamForPlayers || !selectedPlayerIds.length) return
-    await addPlayersToTeam(currentTeamForPlayers.id, selectedPlayerIds)
-    setPlayerModalOpen(false)
-    setCurrentTeamForPlayers(null)
-  }
-
-  // Игроки, которые ещё НЕ в этой команде
-  const availablePlayersForTeam = (team) => {
-    if (!team) return []
-    const teamPlayerIds = new Set((playersByTeam.get(team.id) || []).map((p) => p.id))
-    return players.filter((p) => !teamPlayerIds.has(p.id))
   }
 
   return (
@@ -614,14 +592,6 @@ const TeamsPage = () => {
                       Редактировать
                     </button>
                     <button
-                      className="button tiny"
-                      type="button"
-                      onClick={() => openAddPlayers(team)}
-                      disabled={busy}
-                    >
-                      Добавить игроков
-                    </button>
-                    <button
                       className="button tiny danger"
                       type="button"
                       onClick={() => confirmDelete(team)}
@@ -642,63 +612,10 @@ const TeamsPage = () => {
         </div>
       </div>
 
-      {/* Модалка добавления игроков */}
-      <Modal
-        open={playerModalOpen}
-        title={`Добавить игроков в команду «${currentTeamForPlayers?.name || ''}»`}
-        description="Выберите игроков, которых нужно включить в команду."
-        busy={busy}
-        primaryAction={{
-          label: 'Добавить',
-          disabled: busy || selectedPlayerIds.length === 0,
-          onClick: handleAddPlayers,
-        }}
-        secondaryAction={{
-          label: 'Отмена',
-          disabled: busy,
-          onClick: () => setPlayerModalOpen(false),
-        }}
-        onClose={() => setPlayerModalOpen(false)}
-      >
-        {currentTeamForPlayers && (
-          <div className="team-checkbox-list">
-            {availablePlayersForTeam(currentTeamForPlayers).length === 0 ? (
-              <div style={{ padding: '12px', color: 'var(--muted)', fontSize: '13px' }}>
-                Нет доступных игроков для добавления
-              </div>
-            ) : (
-              availablePlayersForTeam(currentTeamForPlayers).map((player) => {
-                const playerIdStr = String(player.id)
-                const checked = selectedPlayerIds.includes(playerIdStr)
-                return (
-                  <label key={player.id} className="team-checkbox-item">
-                    <input
-                      type="checkbox"
-                      className="team-checkbox-input"
-                      checked={checked}
-                      onChange={() => {
-                        if (checked) {
-                          setSelectedPlayerIds((prev) => prev.filter((id) => id !== playerIdStr))
-                        } else {
-                          setSelectedPlayerIds((prev) => [...prev, playerIdStr])
-                        }
-                      }}
-                    />
-                    <span className="team-checkbox-box" />
-                    <span className="team-checkbox-name">{player.name}</span>
-                  </label>
-                )
-              })
-            )}
-          </div>
-        )}
-      </Modal>
-
-      {/* Модалка создания/редактирования команды (без изменений) */}
       <Modal
         open={modalOpen}
         title={isEdit ? 'Редактировать команду' : 'Создать команду'}
-        description="Задайте название команды."
+        description="Задайте название и выберите игроков."
         busy={modalBusy}
         primaryAction={{
           label: isEdit ? 'Сохранить' : 'Создать',
@@ -723,11 +640,53 @@ const TeamsPage = () => {
             Название
             <input
               value={teamForm.name}
-              onChange={(event) => setTeamForm({ ...teamForm, name: event.target.value })}
+              onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })}
               required
               minLength={2}
               autoFocus
             />
+          </label>
+
+          <label>
+            Игроки
+            <div className="team-checkbox-list">
+              {players.length === 0 ? (
+                <div style={{ padding: '12px', color: 'var(--muted)', fontSize: '13px' }}>
+                  Нет доступных игроков
+                </div>
+              ) : (
+                players.map((player) => {
+                  const playerIdStr = String(player.id);
+                  const checked = (teamForm.playerIds || []).includes(playerIdStr);
+
+                  return (
+                    <label key={player.id} className="team-checkbox-item">
+                      <input
+                        type="checkbox"
+                        className="team-checkbox-input"
+                        checked={checked}
+                        onChange={() => {
+                          const current = [...(teamForm.playerIds || [])];
+                          if (checked) {
+                            setTeamForm({
+                              ...teamForm,
+                              playerIds: current.filter((id) => id !== playerIdStr),
+                            });
+                          } else {
+                            setTeamForm({
+                              ...teamForm,
+                              playerIds: [...current, playerIdStr],
+                            });
+                          }
+                        }}
+                      />
+                      <span className="team-checkbox-box" />
+                      <span className="team-checkbox-name">{player.name}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
           </label>
         </form>
       </Modal>
@@ -888,7 +847,7 @@ const MatchesPage = () => {
   const {
     matches,
     tournaments,
-    teams,               // список всех команд для выпадающих списков
+    teams,
     matchFilter,
     setMatchFilter,
     busy,
@@ -1007,7 +966,6 @@ const MatchesPage = () => {
                 <input value={matchFilter.location} onChange={(e) => setMatchFilter({ ...matchFilter, location: e.target.value })} />
               </label>
 
-              {/* Бывший текстовый ввод – теперь выпадающий список */}
               <label>
                 Домашняя команда
                 <select
@@ -1033,7 +991,6 @@ const MatchesPage = () => {
             </div>
 
             <div className="form-row">
-              {/* Бывший текстовый ввод – теперь выпадающий список */}
               <label>
                 Гостевая команда
                 <select
